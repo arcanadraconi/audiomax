@@ -1,5 +1,5 @@
 {
-  "name": "AUDIOMAX",
+  "name": "audiomax",
   "version": "1.0.0",
   "description": "AudioMax is a sophisticated text-to-speech platform designed for maximum flexibility and reliability, utilizing advanced TTS engines and technologies.",
   "type": "module",
@@ -12,7 +12,7 @@
     "install:all": "npm install && cd backend && npm install"
   },
   "author": "AUDIOMAX",
-  "license": "AUDIOMAX",
+  "license": "MIT",
   "dependencies": {
     "@radix-ui/react-dialog": "^1.0.5",
     "@radix-ui/react-dropdown-menu": "^2.0.6",

@@ -1,18 +1,7 @@
-import { Request, Response } from 'express';
-import { User, IUser } from '../models/User';
+import { RequestHandler } from 'express';
+import { User } from '../models/User';
 import { generateToken, validateEmail, validatePassword } from '../middleware/auth';
 import * as crypto from 'crypto';
-import { RequestHandler } from 'express';
-
-interface AuthError extends Error {
-  code?: number;
-}
-
-const createError = (message: string, code: number = 500): AuthError => {
-  const error = new Error(message) as AuthError;
-  error.code = code;
-  return error;
-};
 
 export const register: RequestHandler = async (req, res) => {
   try {
@@ -52,8 +41,6 @@ export const register: RequestHandler = async (req, res) => {
     });
 
     await user.save();
-
-    // TODO: Send verification email using configured SMTP
     
     res.status(201).json({
       message: 'Registration successful. Please check your email for verification.',
@@ -173,7 +160,7 @@ export const forgotPassword: RequestHandler = async (req, res) => {
     user.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
     await user.save();
 
-    // TODO: Send password reset email using configured SMTP
+    // TODO: Send password reset email
 
     res.json({ message: 'Password reset instructions sent to your email' });
   } catch (error) {
@@ -213,43 +200,5 @@ export const resetPassword: RequestHandler = async (req, res) => {
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({ message: 'Server error during password reset' });
-  }
-};
-
-export const updateProfile: RequestHandler = async (req, res) => {
-  try {
-    const { firstName, lastName, settings } = req.body;
-    const userId = req.user._id;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      res.status(404).json({ message: 'User not found' });
-      return;
-    }
-
-    if (firstName) user.firstName = firstName;
-    if (lastName) user.lastName = lastName;
-    if (settings) {
-      user.settings = {
-        ...user.settings,
-        ...settings
-      };
-    }
-
-    await user.save();
-
-    res.json({
-      message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        settings: user.settings
-      }
-    });
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ message: 'Server error during profile update' });
   }
 };

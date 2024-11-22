@@ -1,15 +1,26 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode } from 'react';
 
 interface User {
-  role?: 'user' | 'admin';
-  username?: string;
-  // Add other user properties as needed
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role: string;
+  subscription: {
+    plan: string;
+    status: string;
+  };
+  settings: {
+    theme: string;
+    emailNotifications: boolean;
+    pushNotifications: boolean;
+  };
 }
 
 interface AuthContextType {
+  user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  user: User | null;
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -17,58 +28,83 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    // Check for existing auth token or session
-    const checkAuth = async () => {
-      try {
-        // Implement your auth check logic here
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  const signup = async (email: string, password: string) => {
+  const login = async (email: string, _password: string) => {
+    setIsLoading(true);
     try {
-      // Implement your signup logic here
-      setIsAuthenticated(true);
-      // Set user data after successful signup
-      setUser({ role: 'user', username: email.split('@')[0] });
+      // TODO: Implement actual login logic with backend
+      console.log('Login attempt with:', email);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setUser({
+        id: '1',
+        email,
+        role: 'user',
+        subscription: {
+          plan: 'free',
+          status: 'active'
+        },
+        settings: {
+          theme: 'system',
+          emailNotifications: true,
+          pushNotifications: false
+        }
+      });
     } catch (error) {
-      console.error('Signup failed:', error);
+      console.error('Login error:', error);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const login = async (email: string, password: string) => {
+  const signup = async (email: string, _password: string) => {
+    setIsLoading(true);
     try {
-      // Implement your login logic here
-      setIsAuthenticated(true);
-      // Set user data after successful login
-      setUser({ role: 'user', username: email.split('@')[0] });
+      // TODO: Implement actual signup logic with backend
+      console.log('Signup attempt with:', email);
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setUser({
+        id: '1',
+        email,
+        role: 'user',
+        subscription: {
+          plan: 'free',
+          status: 'active'
+        },
+        settings: {
+          theme: 'system',
+          emailNotifications: true,
+          pushNotifications: false
+        }
+      });
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('Signup error:', error);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const logout = () => {
-    // Implement your logout logic here
-    setIsAuthenticated(false);
     setUser(null);
   };
 
+  const value = {
+    user,
+    isAuthenticated: !!user,
+    isLoading,
+    login,
+    signup,
+    logout
+  };
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, signup, logout }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

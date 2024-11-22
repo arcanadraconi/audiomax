@@ -70,9 +70,12 @@ export function SignupForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white transition-colors bg-transparent"
             >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              {showPassword ? 
+                <EyeOff className="h-5 w-5 text-white/60 hover:text-white" /> : 
+                <Eye className="h-5 w-5 text-white/60 hover:text-white" />
+              }
             </button>
           </div>
         </div>
@@ -93,9 +96,12 @@ export function SignupForm() {
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white transition-colors bg-transparent"
             >
-              {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              {showConfirmPassword ? 
+                <EyeOff className="h-5 w-5 text-white/60 hover:text-white" /> : 
+                <Eye className="h-5 w-5 text-white/60 hover:text-white" />
+              }
             </button>
           </div>
         </div>
@@ -109,8 +115,8 @@ export function SignupForm() {
               onChange={(e) => setAgreeToTerms(e.target.checked)}
               required
             />
-            <span className="text-xs text-white/80">
-              I agree to the{' '}
+            <span className="text-sm text-white/80">
+              I acknowledge and agree to the{' '}
               <Link to="/terms" className="text-[#9de9c7] hover:text-[#9de9c7]/80">Terms of Service</Link>
               {' '}and{' '}
               <Link to="/privacy" className="text-[#9de9c7] hover:text-[#9de9c7]/80">Privacy Policy</Link>

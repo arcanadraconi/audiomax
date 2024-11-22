@@ -59,9 +59,12 @@ export function LoginForm() {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white"
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white transition-colors bg-transparent"
             >
-              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              {showPassword ? 
+                <EyeOff className="h-5 w-5 text-white/60 hover:text-white" /> : 
+                <Eye className="h-5 w-5 text-white/60 hover:text-white" />
+              }
             </button>
           </div>
         </div>

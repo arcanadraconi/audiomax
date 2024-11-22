@@ -4,9 +4,12 @@
   "description": "AudioMax is a sophisticated text-to-speech platform designed for maximum flexibility and reliability, utilizing advanced TTS engines and technologies.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "frontend": "vite",
+    "backend": "cd backend && npm run dev",
+    "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "install:all": "npm install && cd backend && npm install"
   },
   "author": "AUDIOMAX",
   "license": "AUDIOMAX",
@@ -18,6 +21,7 @@
     "@radix-ui/react-toast": "^1.1.5",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
+    "concurrently": "^8.2.2",
     "express": "^4.21.1",
     "lucide-react": "^0.294.0",
     "react": "^18.2.0",

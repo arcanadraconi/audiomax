@@ -11,6 +11,7 @@ interface AuthContextType {
   isLoading: boolean;
   user: User | null;
   login: (email: string, password: string) => Promise<void>;
+  signup: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -36,6 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     checkAuth();
   }, []);
 
+  const signup = async (email: string, password: string) => {
+    try {
+      // Implement your signup logic here
+      setIsAuthenticated(true);
+      // Set user data after successful signup
+      setUser({ role: 'user', username: email.split('@')[0] });
+    } catch (error) {
+      console.error('Signup failed:', error);
+      throw error;
+    }
+  };
+
   const login = async (email: string, password: string) => {
     try {
       // Implement your login logic here
@@ -55,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

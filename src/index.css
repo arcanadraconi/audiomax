@@ -5,7 +5,7 @@
 @tailwind utilities;
 
 :root {
-  --primary: #40b4c7;
+  --primary: #63248d;  /* Keep original purple for dark theme */
   --secondary: #189571;
   --accent: #9de9c7;
   --background: #0f0035;
@@ -14,14 +14,12 @@
 body {
   font-family: 'Montserrat', sans-serif;
   @apply antialiased;
-  background: linear-gradient(135deg, #0f0035 0%, #1a1a4d 50%, #006666 100%);
+  background: linear-gradient(135deg, #0f0035 0%, #1a1a4d 50%, #0e6b7d 100%);
   min-height: 100vh;
   color: white;
 }
 
-.gradient-text {
-  @apply bg-gradient-to-r from-emerald-400 via-blue-400 to-purple-500 text-transparent bg-clip-text;
-}
+
 
 @keyframes gradient {
   0% { background-position: 0% 50%; }

@@ -1,20 +1,21 @@
-import React from 'react'
-import { Button } from './components/ui/button'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { IndexLogin } from './pages/indexLogin';
+import { IndexSignup } from './pages/indexSignup';
+import { AuthProvider } from './contexts/AuthContext';
 
 function App() {
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Tailwind and Shadcn/ui Test</h1>
-      <div className="space-x-4">
-        <Button variant="default">Default Button</Button>
-        <Button variant="destructive">Destructive Button</Button>
-        <Button variant="outline">Outline Button</Button>
-        <Button variant="secondary">Secondary Button</Button>
-        <Button variant="ghost">Ghost Button</Button>
-        <Button variant="link">Link Button</Button>
-      </div>
-    </div>
-  )
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<IndexLogin />} />
+          <Route path="/signup" element={<IndexSignup />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
 }
 
-export default App
+export default App;

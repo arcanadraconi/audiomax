@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100;300;400;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #40b4c7;
+  --secondary: #189571;
+  --accent: #9de9c7;
+  --background: #0f0035;
+}
+
+body {
+  font-family: 'Montserrat', sans-serif;
+  @apply antialiased;
+  background: linear-gradient(135deg, #0f0035 0%, #1a1a4d 50%, #006666 100%);
+  min-height: 100vh;
+  color: white;
+}
+
+.gradient-text {
+  @apply bg-gradient-to-r from-emerald-400 via-blue-400 to-purple-500 text-transparent bg-clip-text;
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 8s ease infinite;
+}
+
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-lg;
+}
+
+.input-field {
+  @apply w-full px-4 py-2 bg-white/10 border border-white/20 rounded-md text-white placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-primary;
+}
+
+.btn-primary {
+  @apply w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-md transition-colors;
+}
+
+.btn-link {
+  @apply text-primary hover:text-primary/80 transition-colors;
+}
+
+/* Form styling */
+.form-label {
+  @apply block text-sm font-medium text-white/90 mb-1;
+}
+
+.form-container {
+  @apply p-6 glass-panel;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}

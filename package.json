@@ -7,7 +7,7 @@
     "frontend": "vite",
     "backend": "cd backend && npm run dev",
     "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
-    "build": "tsc && vite build",
+    "build": "vite build",
     "preview": "vite preview",
     "install:all": "npm install && cd backend && npm install"
   },

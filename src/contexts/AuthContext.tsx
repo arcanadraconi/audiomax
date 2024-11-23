@@ -21,15 +21,28 @@ interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string) => Promise<void>;
+  login: (email: string, _password: string) => Promise<void>;
+  signup: (email: string, _password: string) => Promise<void>;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>({
+    id: '1',
+    email: 'dev@audiomax.com',
+    role: 'user',
+    subscription: {
+      plan: 'free',
+      status: 'active'
+    },
+    settings: {
+      theme: 'system',
+      emailNotifications: true,
+      pushNotifications: false
+    }
+  });
   const [isLoading, setIsLoading] = useState(false);
 
   const login = async (email: string, _password: string) => {

@@ -12,6 +12,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const BACKUP_PORTS = [5001, 5002, 5003, 5004];
 
 // Connect to MongoDB
 connectDB();
@@ -90,12 +91,33 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV}`);
-  console.log(`API Version: ${process.env.API_VERSION}`);
-  if (process.env.DEBUG === 'true') {
-    console.log('Debug mode enabled');
+// Try to start server on primary port, fallback to backup ports if needed
+const startServer = async () => {
+  try {
+    await app.listen(PORT);
+    console.log(`Server is running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV}`);
+    console.log(`API Version: ${process.env.API_VERSION}`);
+    if (process.env.DEBUG === 'true') {
+      console.log('Debug mode enabled');
+    }
+  } catch (error) {
+    console.log(`Port ${PORT} is in use, trying backup ports...`);
+    for (const backupPort of BACKUP_PORTS) {
+      try {
+        await app.listen(backupPort);
+        console.log(`Server is running on backup port ${backupPort}`);
+        console.log(`Environment: ${process.env.NODE_ENV}`);
+        console.log(`API Version: ${process.env.API_VERSION}`);
+        if (process.env.DEBUG === 'true') {
+          console.log('Debug mode enabled');
+        }
+        break;
+      } catch (err) {
+        console.log(`Backup port ${backupPort} is also in use`);
+      }
+    }
   }
-});
+};
+
+startServer();

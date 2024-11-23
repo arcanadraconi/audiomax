@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
 import { Eye, EyeOff } from 'lucide-react';
@@ -13,6 +13,7 @@ export function SignupForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { signup } = useAuth();
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +28,7 @@ export function SignupForm() {
     setIsLoading(true);
     try {
       await signup(email, password);
+      navigate('/studio');
     } catch (error) {
       console.error('Signup failed:', error);
     } finally {

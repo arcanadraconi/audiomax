@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { UserCircleIcon } from 'lucide-react';
+import { CircleUserRound, Mic, FolderOpen, Settings } from 'lucide-react';
 
 export function Navbar() {
   const { user } = useAuth();
@@ -11,7 +11,7 @@ export function Navbar() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
             <Link to="/" className="text-2xl md:text-3xl font-bold font-montserrat text-white ml-8 md:ml-0">
-              AUDIOMAX
+              
             </Link>
           </div>
 
@@ -19,8 +19,18 @@ export function Navbar() {
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
                 <span className="text-sm text-white">{user.username}</span>
-                <UserCircleIcon className="w-5 h-5" />
+                <CircleUserRound  className="w-5 h-5" />
               </div>
+              <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
+                <Mic className="h-5 w-5" />
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
+                <FolderOpen className="h-5 w-5" />
+              </div>
+              <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
+                <Settings className="h-5 w-5" />
+              </div>
+            
             </div>
           )}
         </div>

@@ -1,15 +1,16 @@
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
-import { connectDB } from './config/database';
-import * as dotenv from 'dotenv';
-import authRoutes from './routes/auth';
-import voicesRoutes from './routes/voices';
-import { auth } from './middleware/auth';
+import { connectDB } from './config/database.js';
+import { config } from 'dotenv';
+import authRoutes from './routes/auth.js';
+import voicesRoutes from './routes/voices.js';
+import { auth } from './middleware/auth.js';
 
-dotenv.config();
+config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;

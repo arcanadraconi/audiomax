@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
+      'import.meta.env.OPENROUTER_API_KEY': JSON.stringify(env.OPENROUTER_API_KEY),
       'import.meta.env.PLAYHT_SECRET_KEY': JSON.stringify(env.PLAYHT_SECRET_KEY),
       'import.meta.env.PLAYHT_USER_ID': JSON.stringify(env.PLAYHT_USER_ID)
     },

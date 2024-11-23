@@ -1,10 +1,17 @@
 import express from 'express';
-import fetch from 'node-fetch';
+import { RequestInfo, RequestInit, Response } from 'node-fetch';
+
+interface ErrorResponse {
+    message: string;
+}
 
 const router = express.Router();
 
 router.get('/library', async (req, res) => {
     try {
+        // Dynamically import node-fetch
+        const { default: fetch } = await import('node-fetch');
+        
         const response = await fetch('https://api.play.ht/api/v2/voices', {
             method: 'GET',
             headers: {
@@ -16,7 +23,7 @@ router.get('/library', async (req, res) => {
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
+            const errorData = await response.json() as ErrorResponse;
             throw new Error(errorData.message || 'Failed to fetch voice library');
         }
 

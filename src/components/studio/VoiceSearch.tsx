@@ -24,6 +24,7 @@ interface VoiceSearchProps {
 }
 
 const SAMPLE_TEXT = "You know you have the choice... I'll let you decide what works best for you.";
+const VISIBLE_VOICES = 3;
 
 export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
@@ -75,7 +76,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
 
       const data = await response.json();
       setVoices(data);
-      setFilteredVoices([]);
+      setFilteredVoices(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch voices');
       console.error('Voice library fetch error:', err);
@@ -146,7 +147,6 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       audioRef.current.pause();
     }
 
-    // TODO: Implement actual voice sample playback with the sample text
     audioRef.current = new Audio(voice.sample);
     audioRef.current.play();
     setCurrentPlayingId(voice.id);
@@ -159,7 +159,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   return (
     <div className="relative" ref={dropdownRef}>
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40" />
+        <Search className="absolute left-3 z-50 top-1/2 transform -translate-y-1/2 text-white/40" />
         <input
           placeholder={isLibraryMode ? "Search voice library..." : "Search your voices..."}
           value={searchTerm}
@@ -200,31 +200,21 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
 
       {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (
         <div className="fixed left-0 right-0 bottom-16 md:absolute md:bottom-auto md:mt-2 z-50">
-          <div className="mx-4 md:mx-0 max-h-[calc(100vh-20rem)] md:max-h-60 overflow-y-auto bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border border-white/10 divide-y divide-white/10">
-            {filteredVoices.slice(0, window.innerWidth < 768 ? 6 : undefined).map((voice) => (
-              <div
-                key={voice.id}
-                className="flex items-center justify-between p-3 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
-                onClick={() => handleVoiceSelect(voice)}
-              >
-                <div className="flex-1">
-                  <div className="text-white/80 font-medium">{voice.name}</div>
-                  <div className="text-white/60 text-sm">
-                    {voice.gender}, {voice.accent}, {voice.tempo}
-                  </div>
-                </div>
-                <button
-                  onClick={(e) => playVoiceSample(voice, e)}
-                  className="p-2 text-white/60 hover:text-white/80 transition-colors duration-300"
+          <div className="mx-4 md:mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
+            <div className="h-[calc(3*2.5rem)] overflow-y-auto">
+              {filteredVoices.map((voice) => (
+                <div
+                  key={voice.id}
+                  onClick={() => handleVoiceSelect(voice)}
+                  className="grid grid-cols-4 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
                 >
-                  {currentPlayingId === voice.id ? (
-                    <Pause className="h-4 w-4 text-primary" />
-                  ) : (
-                    <Play className="h-4 w-4" />
-                  )}
-                </button>
-              </div>
-            ))}
+                  <div className="text-white/80">{voice.name}</div>
+                  <div className="text-white/60">{voice.gender}</div>
+                  <div className="text-white/60">{voice.accent}</div>
+                  <div className="text-white/60">{voice.language}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

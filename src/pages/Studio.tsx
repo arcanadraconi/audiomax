@@ -34,7 +34,7 @@ export default function Studio() {
           <img
             src="/audiomax.png"
             alt="AudioMax Logo"
-            className="w-80 md:w-100"
+            className="w-60 md:w-90"
           />
         </div>
 

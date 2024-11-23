@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Button } from "../ui/button";
-import { Upload, Search, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Upload, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { VoiceSearch } from './VoiceSearch';
 
 // Define allowed file types and max size (5MB)
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
@@ -34,20 +35,39 @@ const audiences = [
   }
 ];
 
+interface Voice {
+  id: string;
+  name: string;
+  sample: string;
+  accent: string;
+  age: string;
+  gender: string;
+  language: string;
+  language_code: string;
+  loudness: string;
+  style: string;
+  tempo: string;
+  texture: string;
+  is_cloned: boolean;
+  voice_engine: string;
+}
+
 export function InputStudio() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string>('');
   const [isAudienceDropdownOpen, setIsAudienceDropdownOpen] = useState(false);
   const [selectedAudience, setSelectedAudience] = useState<typeof audiences[0] | null>(null);
+  const [isLibraryMode, setIsLibraryMode] = useState(true);
+  const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
-        // Check file size
+    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       return 'File size exceeds 5MB limit';
     }
 
-        // Check file type
+    // Check file type
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!ALLOWED_FILE_TYPES.includes(fileExtension)) {
       return 'Invalid file type. Allowed types: PDF, TXT, DOCX, DOC, MD';
@@ -83,13 +103,17 @@ export function InputStudio() {
     }
   };
 
+  const handleVoiceSelect = (voice: Voice) => {
+    setSelectedVoice(voice);
+  };
+
   return (
     <div className="space-y-6">
       {/* Upload Area */}
       <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
         <h2 className="text-2xl font-medium mb-4">Audiomax Studio</h2>
         
-                {/* Hidden file input */}
+        {/* Hidden file input */}
         <input
           type="file"
           ref={fileInputRef}
@@ -98,7 +122,7 @@ export function InputStudio() {
           className="hidden"
         />
 
-                {/* Upload button or selected file display */}
+        {/* Upload button or selected file display */}
         {selectedFile ? (
           <div className="flex items-center justify-between p-2 bg-white/10 rounded-md">
             <span className="text-white/80 truncate">{selectedFile.name}</span>
@@ -114,21 +138,21 @@ export function InputStudio() {
         ) : (
           <Button 
             onClick={handleUploadClick}
-            className="w-full justify-start text-white/80 bg-white/5 border border-white/20 hover:bg-white/10 transition-colors duration-300"
+            className="w-full justify-start text-white/80 bg-white/5 border border-white/20 hover:bg-white/10 transition-colors duration-300 text-md font-normal"
           >
             <Upload className="mr-2 h-4 w-4" />
             Upload a document
           </Button>
         )}
 
-                {/* Error message */}
+        {/* Error message */}
         {error && (
           <div className="mt-2 text-red-400 text-sm">
             {error}
           </div>
         )}
 
-                {/* File requirements */}
+        {/* File requirements */}
         <div className="mt-2 text-white/40 text-xs">
           Supported formats: PDF, TXT, DOCX, DOC, MD (Max size: 5MB)
         </div>
@@ -144,7 +168,7 @@ export function InputStudio() {
         <Button 
           variant="outline" 
           onClick={() => setIsAudienceDropdownOpen(!isAudienceDropdownOpen)}
-          className="w-full justify-between text-white/70 bg-white/5 border-white/20 hover:bg-white/10 transition-colors duration-300 shadow-lg font-normal text-md"
+          className="w-full justify-between text-white/70 bg-white/5 border-white/20 hover:bg-white/10 transition-colors duration-300 shadow-lg text-md font-normal"
         >
           {selectedAudience ? selectedAudience.name : 'Choose your audience'}
           {isAudienceDropdownOpen ? (
@@ -173,24 +197,38 @@ export function InputStudio() {
       </div>
 
       {/* Voice Selection */}
-      <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
-        <div className="flex justify-between items-center">
+      <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 mb-2 border border-white/10 shadow-lg">
+        <div className="flex justify-between items-center mb-2">
           <span className="text-white/80">Voice's choice</span>
           <div className="flex items-center gap-2">
             <span className="text-sm text-white/60">Library</span>
-            <div className="w-10 h-5 bg-white/20 rounded-full relative">
-              <div className="absolute w-4 h-4 bg-primary rounded-full left-0.5 top-0.5"></div>
-            </div>
+            <button
+              onClick={() => setIsLibraryMode(!isLibraryMode)}
+              className="w-10 h-5 bg-white/20 rounded-full relative"
+            >
+              <div 
+                className={`absolute w-4 h-4 bg-primary rounded-full top-0.5 transition-all duration-300 ${
+                  isLibraryMode ? 'left-0.5' : 'left-[calc(100%-20px)]'
+                }`}
+              />
+            </button>
             <span className="text-sm text-white/60">Clone</span>
           </div>
         </div>
-        <div className="relative mt-4 shadow-lg">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40" />
-          <input
-            placeholder="Library voices"
-            className="w-full pl-10 p-2 bg-transparent border border-white/20 rounded-md text-white placeholder:text-white/40 focus:outline-none"
-          />
-        </div>
+
+        <VoiceSearch 
+          isLibraryMode={isLibraryMode}
+          onVoiceSelect={handleVoiceSelect}
+        />
+
+        {selectedVoice && (
+          <div className="mt-2 px-3 py-1 bg-white/10 rounded-md">
+            <div className="text-white/80 text-sm font-medium">{selectedVoice.name}</div>
+            <div className="text-white/60 text-sm">
+              {selectedVoice.gender}, {selectedVoice.age}, {selectedVoice.style}, {selectedVoice.tempo}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Generate Button */}

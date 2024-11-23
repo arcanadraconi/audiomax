@@ -93,14 +93,13 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
 
   const searchVoices = (term: string) => {
     setSearchTerm(term);
+    setShowDropdown(true);
     
     if (term.length < 2) {
-      setFilteredVoices([]);
-      setShowDropdown(false);
+      setFilteredVoices(voices);
       return;
     }
 
-    setShowDropdown(true);
     const searchTerms = term.toLowerCase().split(' ');
     const filtered = voices.filter(voice => {
       return searchTerms.every(term => {
@@ -132,6 +131,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     onVoiceSelect(voice);
     setSearchTerm('');
     setShowDropdown(false);
+    setFilteredVoices([]);
   };
 
   const playVoiceSample = async (voice: Voice, event?: React.MouseEvent) => {
@@ -164,31 +164,11 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
           placeholder={isLibraryMode ? "Search voice library..." : "Search your voices..."}
           value={searchTerm}
           onChange={(e) => searchVoices(e.target.value)}
-          onFocus={() => searchTerm.length >= 2 && setShowDropdown(true)}
-          className="w-full pl-10 p-2 bg-transparent border border-white/20 rounded-md text-white placeholder:text-white/40 focus:outline-none"
+          onFocus={() => setShowDropdown(true)}
+          className="w-full pl-10 p-1 bg-transparent border border-white/20 rounded-md text-white placeholder:text-white/40 focus:outline-none"
         />
       </div>
 
-      {selectedVoice && !searchTerm && (
-        <div className="mt-2 flex items-center justify-between p-3 bg-white/5 rounded-md">
-          <div>
-            <div className="text-white/80 font-medium">{selectedVoice.name}</div>
-            <div className="text-white/60 text-sm">
-              {selectedVoice.gender}, {selectedVoice.accent}, {selectedVoice.tempo}
-            </div>
-          </div>
-          <button
-            onClick={(e) => playVoiceSample(selectedVoice, e)}
-            className="p-2 text-white/60 hover:text-white/80 transition-colors duration-300"
-          >
-            {currentPlayingId === selectedVoice.id ? (
-              <Pause className="h-4 w-4 text-primary" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-      )}
 
       {isLoading && (
         <div className="mt-2 text-white/60">Loading voices...</div>
@@ -206,7 +186,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
                 <div
                   key={voice.id}
                   onClick={() => handleVoiceSelect(voice)}
-                  className="grid grid-cols-4 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
+                  className="grid grid-cols-4 px-4 py-2 hover:bg-white/10 transition-colorsduration-300 cursor-pointer"
                 >
                   <div className="text-white/80">{voice.name}</div>
                   <div className="text-white/60">{voice.gender}</div>
@@ -219,7 +199,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
         </div>
       )}
 
-      {!isLoading && !error && searchTerm.length >= 2 && filteredVoices.length === 0 && (
+      {!isLoading && !error && searchTerm && filteredVoices.length === 0 && (
         <div className="mt-2 text-white/60">No voices found matching your search.</div>
       )}
     </div>

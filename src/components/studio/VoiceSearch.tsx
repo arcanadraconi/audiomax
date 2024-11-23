@@ -1,0 +1,237 @@
+import { useState, useEffect, useRef } from 'react';
+import { Search, Play, Pause } from 'lucide-react';
+
+interface Voice {
+  id: string;
+  name: string;
+  sample: string;
+  accent: string;
+  age: string;
+  gender: string;
+  language: string;
+  language_code: string;
+  loudness: string;
+  style: string;
+  tempo: string;
+  texture: string;
+  is_cloned: boolean;
+  voice_engine: string;
+}
+
+interface VoiceSearchProps {
+  isLibraryMode: boolean;
+  onVoiceSelect: (voice: Voice) => void;
+}
+
+const SAMPLE_TEXT = "You know you have the choice... I'll let you decide what works best for you.";
+
+export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) {
+  const [voices, setVoices] = useState<Voice[]>([]);
+  const [filteredVoices, setFilteredVoices] = useState<Voice[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
+  const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (isLibraryMode) {
+      fetchVoiceLibrary();
+    } else {
+      fetchClonedVoices();
+    }
+  }, [isLibraryMode]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const fetchVoiceLibrary = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/v2/voices', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || 'Failed to fetch voice library');
+      }
+
+      const data = await response.json();
+      setVoices(data);
+      setFilteredVoices([]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch voices');
+      console.error('Voice library fetch error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchClonedVoices = async () => {
+    // TODO: Implement cloned voices fetch
+    setVoices([]);
+    setFilteredVoices([]);
+  };
+
+  const searchVoices = (term: string) => {
+    setSearchTerm(term);
+    
+    if (term.length < 2) {
+      setFilteredVoices([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    setShowDropdown(true);
+    const searchTerms = term.toLowerCase().split(' ');
+    const filtered = voices.filter(voice => {
+      return searchTerms.every(term => {
+        const searchableFields = [
+          voice.name,
+          voice.gender,
+          voice.age,
+          voice.style,
+          voice.accent,
+          voice.tempo,
+          voice.texture,
+          voice.loudness
+        ].filter(Boolean);
+
+        return searchableFields.some(field => 
+          field?.toLowerCase().includes(term) ||
+          (term === 'podcast' && 
+            (voice.style?.toLowerCase().includes('casual') ||
+             voice.style?.toLowerCase().includes('conversational')))
+        );
+      });
+    });
+
+    setFilteredVoices(filtered);
+  };
+
+  const handleVoiceSelect = (voice: Voice) => {
+    setSelectedVoice(voice);
+    onVoiceSelect(voice);
+    setSearchTerm('');
+    setShowDropdown(false);
+  };
+
+  const playVoiceSample = async (voice: Voice, event?: React.MouseEvent) => {
+    event?.stopPropagation();
+
+    if (currentPlayingId === voice.id) {
+      audioRef.current?.pause();
+      setCurrentPlayingId(null);
+      return;
+    }
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+    }
+
+    // TODO: Implement actual voice sample playback with the sample text
+    audioRef.current = new Audio(voice.sample);
+    audioRef.current.play();
+    setCurrentPlayingId(voice.id);
+
+    audioRef.current.onended = () => {
+      setCurrentPlayingId(null);
+    };
+  };
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-white/40" />
+        <input
+          placeholder={isLibraryMode ? "Search voice library..." : "Search your voices..."}
+          value={searchTerm}
+          onChange={(e) => searchVoices(e.target.value)}
+          onFocus={() => searchTerm.length >= 2 && setShowDropdown(true)}
+          className="w-full pl-10 p-2 bg-transparent border border-white/20 rounded-md text-white placeholder:text-white/40 focus:outline-none"
+        />
+      </div>
+
+      {selectedVoice && !searchTerm && (
+        <div className="mt-2 flex items-center justify-between p-3 bg-white/5 rounded-md">
+          <div>
+            <div className="text-white/80 font-medium">{selectedVoice.name}</div>
+            <div className="text-white/60 text-sm">
+              {selectedVoice.gender}, {selectedVoice.accent}, {selectedVoice.tempo}
+            </div>
+          </div>
+          <button
+            onClick={(e) => playVoiceSample(selectedVoice, e)}
+            className="p-2 text-white/60 hover:text-white/80 transition-colors duration-300"
+          >
+            {currentPlayingId === selectedVoice.id ? (
+              <Pause className="h-4 w-4 text-primary" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="mt-2 text-white/60">Loading voices...</div>
+      )}
+
+      {error && (
+        <div className="mt-2 text-red-400">{error}</div>
+      )}
+
+      {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (
+        <div className="fixed left-0 right-0 bottom-16 md:absolute md:bottom-auto md:mt-2 z-50">
+          <div className="mx-4 md:mx-0 max-h-[calc(100vh-20rem)] md:max-h-60 overflow-y-auto bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border border-white/10 divide-y divide-white/10">
+            {filteredVoices.slice(0, window.innerWidth < 768 ? 6 : undefined).map((voice) => (
+              <div
+                key={voice.id}
+                className="flex items-center justify-between p-3 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
+                onClick={() => handleVoiceSelect(voice)}
+              >
+                <div className="flex-1">
+                  <div className="text-white/80 font-medium">{voice.name}</div>
+                  <div className="text-white/60 text-sm">
+                    {voice.gender}, {voice.accent}, {voice.tempo}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => playVoiceSample(voice, e)}
+                  className="p-2 text-white/60 hover:text-white/80 transition-colors duration-300"
+                >
+                  {currentPlayingId === voice.id ? (
+                    <Pause className="h-4 w-4 text-primary" />
+                  ) : (
+                    <Play className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !error && searchTerm.length >= 2 && filteredVoices.length === 0 && (
+        <div className="mt-2 text-white/60">No voices found matching your search.</div>
+      )}
+    </div>
+  );
+}

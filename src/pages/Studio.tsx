@@ -2,15 +2,25 @@ import { useState, useEffect } from 'react';
 import { Button } from "../components/ui/button";
 import { Upload, Search, ChevronDown, Play, SkipBack, SkipForward, AudioLines } from 'lucide-react';
 
-// Change to default export
 export default function Studio() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [equalizer, setEqualizer] = useState<number[]>([]);
+  const [waveform, setWaveform] = useState<number[]>([]);
+  const numBars = 40; // More bars for a smoother waveform
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setEqualizer(Array.from({ length: 5 }, () => Math.random() * 40 + 10));
-    }, 100);
+    // Function to generate smooth waveform data
+    const generateWaveform = () => {
+      const newWaveform = Array.from({ length: numBars }, (_, i) => {
+        // Create a smoother sine wave pattern
+        const base = Math.sin((i / numBars) * Math.PI * 2) * 0.5 + 0.5;
+        const random = Math.random() * 0.3; // Smaller random factor for more natural movement
+        return Math.max(0.1, Math.min(1, base + random)); // Ensure values stay within bounds
+      });
+      setWaveform(newWaveform);
+    };
+
+    // Update waveform more frequently for smoother animation
+    const interval = setInterval(generateWaveform, 50);
     return () => clearInterval(interval);
   }, []);
 
@@ -138,9 +148,16 @@ export default function Studio() {
                   <Upload className="mr-2 h-4 w-4" />
                   Upload voice
                 </Button>
-                <div className="w-24 h-8 bg-white/1 rounded-md flex items-end justify-around">
-                  {equalizer.map((height, index) => (
-                    <div key={index} className="w-1 bg-primary rounded-t" style={{ height: `${height}%` }}></div>
+                <div className="w-32 h-12 bg-white/10 rounded-md flex items-end justify-around overflow-hidden">
+                  {waveform.map((height, index) => (
+                    <div
+                      key={index}
+                      className="w-[2px] bg-primary transition-all duration-100 ease-in-out"
+                      style={{ 
+                        height: `${height * 100}%`,
+                        opacity: 0.6 + (height * 0.4)
+                      }}
+                    />
                   ))}
                 </div>
                 <Button  size="icon" className="text-white/60 bg-white/1 hover:bg-white/10 transition-colors duration-300">

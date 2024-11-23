@@ -1,23 +1,53 @@
 import { useState, useRef } from 'react';
 import { Button } from "../ui/button";
-import { Upload, Search, ChevronDown, X } from 'lucide-react';
+import { Upload, Search, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 // Define allowed file types and max size (5MB)
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
+const audiences = [
+  {
+    id: 'social-media',
+    name: 'Social Media-Friendly, Podcast',
+    description: 'short, engaging, casual, conversational'
+  },
+  {
+    id: 'educational',
+    name: 'Educational, Teaching, Training',
+    description: 'structured, informative, accessible'
+  },
+  {
+    id: 'storytelling',
+    name: 'Storytelling, Narrative, Entertaining',
+    description: 'compelling, narrative-driven, engaging, captivating'
+  },
+  {
+    id: 'deep-content',
+    name: 'Deep/Debate Content, Motivational, TedTalk',
+    description: 'thought-provoking, insightful, balanced'
+  },
+  {
+    id: 'meditation',
+    name: 'Meditation, Mantra, Prayers, ASMR',
+    description: 'smooth, calm, slow'
+  }
+];
+
 export function InputStudio() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [error, setError] = useState<string>('');
+  const [isAudienceDropdownOpen, setIsAudienceDropdownOpen] = useState(false);
+  const [selectedAudience, setSelectedAudience] = useState<typeof audiences[0] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
-    // Check file size
+        // Check file size
     if (file.size > MAX_FILE_SIZE) {
       return 'File size exceeds 5MB limit';
     }
 
-    // Check file type
+        // Check file type
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!ALLOWED_FILE_TYPES.includes(fileExtension)) {
       return 'Invalid file type. Allowed types: PDF, TXT, DOCX, DOC, MD';
@@ -59,7 +89,7 @@ export function InputStudio() {
       <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
         <h2 className="text-2xl font-medium mb-4">Audiomax Studio</h2>
         
-        {/* Hidden file input */}
+                {/* Hidden file input */}
         <input
           type="file"
           ref={fileInputRef}
@@ -68,7 +98,7 @@ export function InputStudio() {
           className="hidden"
         />
 
-        {/* Upload button or selected file display */}
+                {/* Upload button or selected file display */}
         {selectedFile ? (
           <div className="flex items-center justify-between p-2 bg-white/10 rounded-md">
             <span className="text-white/80 truncate">{selectedFile.name}</span>
@@ -91,14 +121,14 @@ export function InputStudio() {
           </Button>
         )}
 
-        {/* Error message */}
+                {/* Error message */}
         {error && (
           <div className="mt-2 text-red-400 text-sm">
             {error}
           </div>
         )}
 
-        {/* File requirements */}
+                {/* File requirements */}
         <div className="mt-2 text-white/40 text-xs">
           Supported formats: PDF, TXT, DOCX, DOC, MD (Max size: 5MB)
         </div>
@@ -110,10 +140,37 @@ export function InputStudio() {
       </div>
 
       {/* Audience Selection */}
-      <Button variant="outline" className="w-full justify-between text-white/80 bg-white/5 border-white/20 hover:bg-white/10 transition-colors duration-300 shadow-lg">
-        Choose your audience
-        <ChevronDown className="h-4 w-4" />
-      </Button>
+      <div className="relative">
+        <Button 
+          variant="outline" 
+          onClick={() => setIsAudienceDropdownOpen(!isAudienceDropdownOpen)}
+          className="w-full justify-between text-white/70 bg-white/5 border-white/20 hover:bg-white/10 transition-colors duration-300 shadow-lg font-normal text-md"
+        >
+          {selectedAudience ? selectedAudience.name : 'Choose your audience'}
+          {isAudienceDropdownOpen ? (
+            <ChevronUp className="h-4 w-4" />
+          ) : (
+            <ChevronDown className="h-4 w-4" />
+          )}
+        </Button>
+
+        {isAudienceDropdownOpen && (
+          <div className="absolute z-10 w-full mt-2 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border border-white/10 shadow-lg overflow-hidden">
+            {audiences.map((audience) => (
+              <button
+                key={audience.id}
+                onClick={() => {
+                  setSelectedAudience(audience);
+                  setIsAudienceDropdownOpen(false);
+                }}
+                className="w-full px-4 py-2 text-left text-md hover:bg-white/10 transition-colors duration-300 text-white/70"
+              >
+                {audience.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Voice Selection */}
       <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">

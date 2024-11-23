@@ -1,39 +1,54 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { CircleUserRound, Mic, FolderOpen, Settings } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Menu, X, Settings, LogOut } from 'lucide-react';
 
 export function Navbar() {
-  const { user } = useAuth();
+  const [isOpen, setIsOpen] = useState(false);
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+  };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f0035]/50 backdrop-blur-sm border-b border-white/10">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/5 backdrop-blur-sm border-b border-white/10">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <Link to="/" className="text-2xl md:text-3xl font-bold font-montserrat text-white ml-8 md:ml-0">
-              
-            </Link>
+            <span className="text-white/80">{user?.email}</span>
           </div>
 
-          {user && (
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
-                <span className="text-sm text-white">{user.username}</span>
-                <CircleUserRound  className="w-5 h-5" />
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
-                <Mic className="h-5 w-5" />
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
-                <FolderOpen className="h-5 w-5" />
-              </div>
-              <div className="flex items-center gap-2 p-2 rounded-full hover:bg-white/10 transition">
-                <Settings className="h-5 w-5" />
-              </div>
-            
-            </div>
-          )}
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center space-x-4">
+            <Button variant="ghost" size="icon" className="text-white/60 hover:bg-white/10 transition-colors duration-300">
+              <Settings className="h-5 w-5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="text-white/60 hover:bg-white/10 transition-colors duration-300" onClick={handleLogout}>
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
+
+          {/* Mobile Menu Button */}
+          <div className="md:hidden">
+            <Button variant="ghost" size="icon" className="text-white/60 hover:bg-white/10 transition-colors duration-300" onClick={() => setIsOpen(!isOpen)}>
+              {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </Button>
+          </div>
         </div>
+
+        {/* Mobile Navigation */}
+        {isOpen && (
+          <div className="md:hidden py-4">
+            <div className="flex flex-col space-y-4">
+              <Link to="/settings" className="text-white/60 hover:text-white transition-colors duration-300">Settings</Link>
+              <button onClick={handleLogout} className="text-white/60 hover:text-white transition-colors duration-300 text-left">
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </nav>
   );

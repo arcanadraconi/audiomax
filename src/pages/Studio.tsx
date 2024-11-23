@@ -1,14 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Button } from "../components/ui/button";
 import { InputStudio } from '../components/studio/InputStudio';
 import { AudioPlayer } from '../components/studio/AudioPlayer';
 import { VoiceCloning } from '../components/studio/VoiceCloning';
 import { VoiceLibrary } from '../components/studio/VoiceLibrary';
 
 export default function Studio() {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 769);
+    };
+
+    // Initial check
+    checkMobile();
+
+    // Add event listener for window resize
+    window.addEventListener('resize', checkMobile);
+
+    // Cleanup
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   return (
-    <div className=" w-full top-0 text-white font-sans">
+    <div className="w-full top-0 text-white font-sans">
       {/* Main Content */}
       <div className="container mx-auto px-4">
         {/* Logo */}
@@ -23,9 +41,25 @@ export default function Studio() {
         {/* Three Column Layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left Column - Instructions */}
-          <div className={`text-white/80 space-y-6 ${isMenuOpen ? 'block' : 'hidden'} md:block`}>
-            <h2 className="text-xl font-medium">How to Use Audiomax Studio</h2>
-            <div className="space-y-4">
+          <div className="text-white/80 space-y-6 md:block">
+            <div className="flex justify-between items-center">
+              <h2 className="text-xl font-medium">How to Use Audiomax Studio</h2>
+              {isMobile && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="md:hidden text-white/60 hover:bg-white/10 transition-colors duration-300"
+                >
+                  {isExpanded ? (
+                    <ChevronUp className="h-5 w-5" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5" />
+                  )}
+                </Button>
+              )}
+            </div>
+            <div className={`space-y-4 ${isMobile && !isExpanded ? 'hidden' : 'block'}`}>
               <div>
                 <h3 className="text-white/90 mb-2">Step 1: Upload Your Content</h3>
                 <p className="text-md text-white/60">Choose one of two ways to start:</p>

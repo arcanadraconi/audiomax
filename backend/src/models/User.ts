@@ -1,5 +1,5 @@
 import mongoose, { Document, Model } from 'mongoose';
-import bcrypt from 'bcryptjs';
+import bcryptjs from 'bcryptjs';
 
 export interface IUser extends Document {
   _id: mongoose.Types.ObjectId;
@@ -113,8 +113,8 @@ userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
-    const salt = await bcrypt.genSalt(10);
-    this.password = await bcrypt.hash(this.password, salt);
+    const salt = bcryptjs.genSaltSync(10);
+    this.password = bcryptjs.hashSync(this.password, salt);
     next();
   } catch (error) {
     next(error as Error);
@@ -124,7 +124,7 @@ userSchema.pre('save', async function(next) {
 // Method to compare password for login
 userSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
   try {
-    return await bcrypt.compare(candidatePassword, this.password);
+    return bcryptjs.compareSync(candidatePassword, this.password);
   } catch (error) {
     throw error;
   }
@@ -136,10 +136,19 @@ userSchema.statics.findByEmail = function(email: string) {
 };
 
 // Ensure indexes
-userSchema.index({ email: 1 });
+userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ 'subscription.stripeCustomerId': 1 });
 userSchema.index({ status: 1 });
 userSchema.index({ createdAt: 1 });
+
+// Remove any existing indexes that we don't want
+mongoose.connection.on('connected', async () => {
+  try {
+    await mongoose.connection.db.collection('users').dropIndex('username_1');
+  } catch (error) {
+    // Ignore error if index doesn't exist
+  }
+});
 
 // Hide sensitive data when converting to JSON
 userSchema.set('toJSON', {

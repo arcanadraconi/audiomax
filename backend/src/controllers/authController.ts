@@ -5,14 +5,23 @@ import * as crypto from 'crypto';
 
 export const register: RequestHandler = async (req, res) => {
   try {
+    console.log('Registration request body:', req.body);
     const { email, password, firstName, lastName } = req.body;
 
+    if (!email || !password) {
+      console.log('Missing required fields:', { email: !!email, password: !!password });
+      res.status(400).json({ message: 'Email and password are required' });
+      return;
+    }
+
     if (!validateEmail(email)) {
+      console.log('Invalid email format:', email);
       res.status(400).json({ message: 'Invalid email format' });
       return;
     }
 
     if (!validatePassword(password)) {
+      console.log('Invalid password format');
       res.status(400).json({
         message: 'Password must be at least 8 characters long and contain uppercase, lowercase, number, and special character'
       });
@@ -21,6 +30,7 @@ export const register: RequestHandler = async (req, res) => {
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('Email already registered:', email);
       res.status(400).json({ message: 'Email already registered' });
       return;
     }
@@ -39,9 +49,12 @@ export const register: RequestHandler = async (req, res) => {
       }
     });
 
+    console.log('Attempting to save user:', { email: user.email, role: user.role });
     await user.save();
+    console.log('User saved successfully');
     
     const token = generateToken(user._id.toString());
+    console.log('Generated token for user');
 
     res.status(201).json({
       token,
@@ -53,8 +66,13 @@ export const register: RequestHandler = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error during registration' });
+    console.error('Registration error details:', error);
+    if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    res.status(500).json({ message: 'Server error during registration', details: error instanceof Error ? error.message : 'Unknown error' });
   }
 };
 

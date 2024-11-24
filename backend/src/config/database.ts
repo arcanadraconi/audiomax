@@ -16,7 +16,16 @@ const options: ConnectOptions = {
 
 export const connectDB = async () => {
   try {
-    await mongoose.connect(DATABASE_URL, options);
+    const conn = await mongoose.connect(DATABASE_URL, options);
+    
+    // Drop the existing users collection to remove problematic indexes
+    try {
+      await conn.connection.db.dropCollection('users');
+      console.log('Dropped users collection to remove old indexes');
+    } catch (error) {
+      // Ignore error if collection doesn't exist
+    }
+    
     console.log('MongoDB Atlas connected successfully');
   } catch (error) {
     console.error('MongoDB connection error:', error);

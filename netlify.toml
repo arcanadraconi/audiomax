@@ -5,6 +5,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  VITE_API_URL = "https://audiomax.onrender.com"
 
 [[redirects]]
   from = "/api/v2/*"

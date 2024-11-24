@@ -70,8 +70,16 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || 'Failed to fetch voice library');
+        const text = await response.text();
+        console.error('PlayHT API Error Response:', text);
+        console.error('Response Status:', response.status);
+        console.error('Response Headers:', response.headers);
+        try {
+          const errorData = JSON.parse(text);
+          throw new Error(errorData.message || 'Failed to fetch voice library');
+        } catch (parseError) {
+          throw new Error(`Failed to fetch voice library: ${response.statusText}`);
+        }
       }
 
       const data = await response.json();

@@ -61,11 +61,17 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setIsLoading(true);
     setError(null);
     try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required');
+      }
+
       const response = await fetch('/api/v2/voices', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         }
       });
 

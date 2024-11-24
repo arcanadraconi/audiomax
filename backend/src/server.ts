@@ -25,9 +25,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration
 const corsOptions = {
-    origin: process.env.CORS_ALLOWED_ORIGINS?.split(',') || 'http://localhost:5174',
+    origin: ['http://localhost:5174', 'http://localhost:5173'],
     credentials: true,
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
 

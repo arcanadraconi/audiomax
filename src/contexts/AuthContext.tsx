@@ -3,13 +3,7 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 interface User {
   id: string;
   email: string;
-  firstName?: string;
-  lastName?: string;
   role: string;
-  subscription: {
-    plan: string;
-    status: string;
-  };
   settings: {
     theme: string;
     emailNotifications: boolean;
@@ -34,9 +28,25 @@ const loadUserFromStorage = () => {
   return storedUser ? JSON.parse(storedUser) : null;
 };
 
+const API_URL = 'http://localhost:5000';
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => loadUserFromStorage());
   const [isLoading, setIsLoading] = useState(false);
+
+  // Clear all non-AudioMax data from localStorage
+  const clearNonAudioMaxData = () => {
+    const audioMaxKeys = ['user', 'token', 'audiomax_theme'];
+    Object.keys(localStorage).forEach(key => {
+      if (!audioMaxKeys.includes(key)) {
+        localStorage.removeItem(key);
+      }
+    });
+  };
+
+  useEffect(() => {
+    clearNonAudioMaxData();
+  }, []);
 
   // Save user to localStorage whenever it changes
   useEffect(() => {
@@ -45,30 +55,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  const login = async (email: string, _password: string) => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // TODO: Implement actual login logic with backend
-      console.log('Login attempt with:', email);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const newUser = {
-        id: '1',
-        email,
-        role: 'user',
-        subscription: {
-          plan: 'free',
-          status: 'active'
+      const response = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        settings: {
+        body: JSON.stringify({ email, password }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Login failed');
+      }
+
+      const data = await response.json();
+      const userData = {
+        id: data.user.id,
+        email: data.user.email,
+        role: data.user.role || 'user',
+        settings: data.user.settings || {
           theme: 'system',
           emailNotifications: true,
           pushNotifications: false
         }
       };
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      localStorage.setItem('token', 'dummy-jwt-token');
+
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('audiomax_theme', userData.settings.theme);
+
+      // Clear any non-AudioMax data
+      clearNonAudioMaxData();
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -77,30 +99,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signup = async (email: string, _password: string) => {
+  const signup = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // TODO: Implement actual signup logic with backend
-      console.log('Signup attempt with:', email);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const newUser = {
-        id: '1',
-        email,
-        role: 'user',
-        subscription: {
-          plan: 'free',
-          status: 'active'
+      const response = await fetch(`${API_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-        settings: {
+        body: JSON.stringify({ email, password }),
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || 'Signup failed');
+      }
+
+      const data = await response.json();
+      const userData = {
+        id: data.user.id,
+        email: data.user.email,
+        role: data.user.role || 'user',
+        settings: data.user.settings || {
           theme: 'system',
           emailNotifications: true,
           pushNotifications: false
         }
       };
-      setUser(newUser);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      localStorage.setItem('token', 'dummy-jwt-token');
+
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('audiomax_theme', userData.settings.theme);
+
+      // Clear any non-AudioMax data
+      clearNonAudioMaxData();
     } catch (error) {
       console.error('Signup error:', error);
       throw error;
@@ -110,10 +144,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
-    // Clear all auth-related data
     setUser(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
+    localStorage.removeItem('audiomax_theme');
     sessionStorage.clear();
     
     // Clear any cookies
@@ -121,7 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
     });
 
-    console.log('Logged out and cleared all sessions');
+    // Clear any non-AudioMax data
+    clearNonAudioMaxData();
   };
 
   const value = {

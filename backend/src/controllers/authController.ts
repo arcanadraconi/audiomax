@@ -24,15 +24,14 @@ export const register: RequestHandler = async (req, res) => {
       res.status(400).json({ message: 'Email already registered' });
       return;
     }
-
-    const verificationToken = crypto.randomBytes(32).toString('hex');
     
     const user = new User({
       email,
       password,
       firstName,
       lastName,
-      verificationToken,
+      isVerified: true, // Temporarily set to true for development
+      role: 'user',
       settings: {
         theme: 'system',
         emailNotifications: true,
@@ -42,13 +41,15 @@ export const register: RequestHandler = async (req, res) => {
 
     await user.save();
     
+    const token = generateToken(user._id.toString());
+
     res.status(201).json({
-      message: 'Registration successful. Please check your email for verification.',
+      token,
       user: {
         id: user._id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName
+        role: user.role,
+        settings: user.settings
       }
     });
   } catch (error) {
@@ -77,16 +78,17 @@ export const login: RequestHandler = async (req, res) => {
       return;
     }
 
-    if (!user.isVerified) {
-      res.status(401).json({ message: 'Please verify your email first' });
-      return;
-    }
-
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
+
+    // Remove email verification check for development
+    // if (!user.isVerified) {
+    //   res.status(401).json({ message: 'Please verify your email first' });
+    //   return;
+    // }
 
     // Update last login
     user.lastLogin = new Date();
@@ -99,11 +101,12 @@ export const login: RequestHandler = async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
         role: user.role,
-        subscription: user.subscription,
-        settings: user.settings
+        settings: {
+          theme: user.settings?.theme || 'system',
+          emailNotifications: user.settings?.emailNotifications || true,
+          pushNotifications: user.settings?.pushNotifications || false
+        }
       }
     });
   } catch (error) {
@@ -134,8 +137,8 @@ export const verifyEmail: RequestHandler = async (req, res) => {
       user: {
         id: user._id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName
+        role: user.role,
+        settings: user.settings
       }
     });
   } catch (error) {

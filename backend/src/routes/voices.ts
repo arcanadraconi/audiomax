@@ -1,54 +1,64 @@
 import express from 'express';
 import { RequestInfo, RequestInit, Response } from 'node-fetch';
-
-interface ErrorResponse {
-    message: string;
-}
+import { auth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.get('/library', async (req, res) => {
+// Mock voice data for development
+const mockVoices = [
+  {
+    id: 'v1',
+    name: 'James',
+    gender: 'male',
+    age: 'adult',
+    style: 'casual',
+    accent: 'american',
+    tempo: 'medium',
+    texture: 'warm',
+    loudness: 'medium',
+    sample: 'https://example.com/sample1.mp3'
+  },
+  {
+    id: 'v2',
+    name: 'Sarah',
+    gender: 'female',
+    age: 'adult',
+    style: 'professional',
+    accent: 'british',
+    tempo: 'medium',
+    texture: 'clear',
+    loudness: 'medium',
+    sample: 'https://example.com/sample2.mp3'
+  },
+  // Add more mock voices as needed
+];
+
+// Protected route - requires authentication
+router.get('/library', auth, async (req, res) => {
     try {
-        // Debug log environment variables
-        console.log('Environment Variables:', {
-            PLAYHT_SECRET_KEY: process.env.PLAYHT_SECRET_KEY,
-            PLAYHT_USER_ID: process.env.PLAYHT_USER_ID
-        });
-
-        // Dynamically import node-fetch
-        const { default: fetch } = await import('node-fetch');
+        // For development, return mock data
+        res.json(mockVoices);
         
-        const headers = {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${process.env.PLAYHT_SECRET_KEY}`,
-            'X-User-ID': process.env.PLAYHT_USER_ID || '',
-            'AUTHORIZATION': `Bearer ${process.env.PLAYHT_SECRET_KEY}`
-        };
+        // TODO: Implement real PlayHT API integration
+        // const { default: fetch } = await import('node-fetch');
+        // const headers = {
+        //     'Accept': 'application/json',
+        //     'Content-Type': 'application/json',
+        //     'Authorization': `Bearer ${process.env.PLAYHT_SECRET_KEY}`,
+        //     'X-User-ID': process.env.PLAYHT_USER_ID
+        // };
+        
+        // const response = await fetch('https://api.play.ht/api/v2/voices', {
+        //     method: 'GET',
+        //     headers
+        // });
 
-        // Debug log headers
-        console.log('Request Headers:', headers);
+        // if (!response.ok) {
+        //     throw new Error(`Failed to fetch voice library: ${response.statusText}`);
+        // }
 
-        const response = await fetch('https://api.play.ht/api/v2/voices', {
-            method: 'GET',
-            headers
-        });
-
-        if (!response.ok) {
-            const text = await response.text();
-            console.error('PlayHT API Error Response:', text);
-            console.error('Response Status:', response.status);
-            console.error('Response Headers:', Object.fromEntries(response.headers.entries()));
-            try {
-                const errorData = JSON.parse(text) as ErrorResponse;
-                throw new Error(errorData.message || 'Failed to fetch voice library');
-            } catch (parseError) {
-                throw new Error(`Failed to fetch voice library: ${response.statusText}`);
-            }
-        }
-
-        const data = await response.json();
-        res.json(data);
+        // const data = await response.json();
+        // res.json(data);
     } catch (error) {
         console.error('Voice library fetch error:', error);
         res.status(500).json({

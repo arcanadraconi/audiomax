@@ -4,10 +4,13 @@ const RENDER_API_URL = 'https://audiomax.onrender.com/api/auth';
 
 export const handler: Handler = async (event) => {
   // Enable CORS
-  const headers = {
+  const headers: Record<string, string> = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
+    'Access-Control-Expose-Headers': 'Set-Cookie',
+    'Content-Type': 'application/json'
   };
 
   // Handle preflight requests
@@ -26,15 +29,15 @@ export const handler: Handler = async (event) => {
     let parsedBody;
     try {
       parsedBody = event.body ? JSON.parse(event.body) : {};
-      console.log('[Auth Function] Request body:', parsedBody);
+      console.log('[Auth Function] Request body:', {
+        ...parsedBody,
+        password: parsedBody.password ? '[REDACTED]' : undefined
+      });
     } catch (error) {
       console.error('[Auth Function] Error parsing request body:', error);
       return {
         statusCode: 400,
-        headers: {
-          ...headers,
-          'Content-Type': 'application/json'
-        },
+        headers,
         body: JSON.stringify({
           message: 'Invalid request body format'
         })
@@ -46,10 +49,7 @@ export const handler: Handler = async (event) => {
       if (!parsedBody.email || !parsedBody.password) {
         return {
           statusCode: 400,
-          headers: {
-            ...headers,
-            'Content-Type': 'application/json'
-          },
+          headers,
           body: JSON.stringify({
             message: 'Email and password are required for registration'
           })
@@ -57,23 +57,51 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    // Forward all headers from the original request
+    const requestHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+
+    // Add Authorization header if present
+    if (event.headers.authorization) {
+      requestHeaders.Authorization = event.headers.authorization;
+    }
+
     // Make direct request to render.com backend
     const fullUrl = `${RENDER_API_URL}/${path}`;
     console.log('[Auth Function] Making request to:', fullUrl);
+    console.log('[Auth Function] Request headers:', requestHeaders);
 
     const response = await fetch(fullUrl, {
       method: event.httpMethod,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
+      headers: requestHeaders,
       body: event.body
     });
 
-    const responseData = await response.json();
+    let responseData;
+    const responseText = await response.text();
+    console.log('[Auth Function] Raw response:', responseText);
+
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (error) {
+      console.error('[Auth Function] Error parsing response:', error);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          message: 'Invalid response from authentication server'
+        })
+      };
+    }
+
     console.log('[Auth Function] Backend response:', {
       status: response.status,
-      data: responseData
+      data: {
+        ...responseData,
+        token: responseData.token ? '[REDACTED]' : undefined
+      }
     });
 
     // Check if we got a user ID in the response
@@ -92,16 +120,22 @@ export const handler: Handler = async (event) => {
       if (verifyResponse.ok) {
         console.log('[Auth Function] User verified in database');
       } else {
-        console.warn('[Auth Function] User verification failed');
+        console.warn('[Auth Function] User verification failed:', await verifyResponse.text());
       }
+    }
+
+    // Forward response headers
+    const responseHeaders = { ...headers };
+
+    // Forward any Set-Cookie headers
+    const setCookieHeader = response.headers.get('Set-Cookie');
+    if (setCookieHeader) {
+      responseHeaders['Set-Cookie'] = setCookieHeader;
     }
 
     return {
       statusCode: response.status,
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json'
-      },
+      headers: responseHeaders,
       body: JSON.stringify(responseData)
     };
   } catch (error: any) {
@@ -112,10 +146,7 @@ export const handler: Handler = async (event) => {
 
     return {
       statusCode: 500,
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({
         message: 'Internal server error in auth function',
         error: error?.message || 'Unknown error'

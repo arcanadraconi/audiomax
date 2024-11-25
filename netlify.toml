@@ -7,13 +7,7 @@
 [build.environment]
   NODE_VERSION = "18"
 
-[[redirects]]
-  from = "/api/v2/*"
-  to = "https://api.play.ht/api/v2/:splat"
-  status = 200
-  force = true
-  headers = {Authorization = "Bearer ${PLAYHT_SECRET_KEY}", X-User-ID = "${PLAYHT_USER_ID}"}
-
+# API redirects must come before the catch-all redirect
 [[redirects]]
   from = "/api/auth/*"
   to = "https://audiomax.onrender.com/api/auth/:splat"
@@ -27,11 +21,19 @@
   force = true
 
 [[redirects]]
+  from = "/api/v2/*"
+  to = "https://api.play.ht/api/v2/:splat"
+  status = 200
+  force = true
+  headers = {Authorization = "Bearer ${PLAYHT_SECRET_KEY}", X-User-ID = "${PLAYHT_USER_ID}"}
+
+[[redirects]]
   from = "/api/*"
   to = "https://audiomax.onrender.com/api/:splat"
   status = 200
   force = true
 
+# Catch-all redirect must be last
 [[redirects]]
   from = "/*"
   to = "/index.html"

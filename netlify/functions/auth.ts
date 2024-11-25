@@ -21,41 +21,70 @@ export const handler: Handler = async (event) => {
   try {
     // Get the path segment after /auth/
     const path = event.path.replace('/.netlify/functions/auth/', '');
-    
-    console.log('Forwarding request to:', `${RENDER_API_URL}/${path}`);
-    console.log('Request body:', event.body);
-    console.log('Request headers:', event.headers);
 
-    // Check if render.com is accessible
+    // Parse and validate request body
+    let parsedBody;
     try {
-      await fetch(RENDER_API_URL);
+      parsedBody = event.body ? JSON.parse(event.body) : {};
+      console.log('Parsed request body:', parsedBody);
     } catch (error) {
-      console.error('Render.com backend is not accessible:', error);
+      console.error('Error parsing request body:', error);
       return {
-        statusCode: 503,
+        statusCode: 400,
         headers: {
           ...headers,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          message: 'Backend service is currently unavailable. Please try again later.',
-          error: 'BACKEND_UNAVAILABLE'
+          message: 'Invalid request body format'
         })
       };
     }
 
-    // Forward the request to render.com backend
+    // Validate required fields for registration
+    if (path === 'register') {
+      if (!parsedBody.email || !parsedBody.password) {
+        return {
+          statusCode: 400,
+          headers: {
+            ...headers,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: 'Email and password are required for registration'
+          })
+        };
+      }
+    }
+
+    console.log('Forwarding request to:', `${RENDER_API_URL}/${path}`);
+    console.log('Request body:', parsedBody);
+    console.log('Request headers:', event.headers);
+
+    // Forward the request to backend
     const response = await fetch(`${RENDER_API_URL}/${path}`, {
       method: event.httpMethod,
       headers: {
-        'Content-Type': 'application/json',
-        ...event.headers
+        'Content-Type': 'application/json'
       },
       body: event.body
     });
 
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Backend error response:', errorData);
+      return {
+        statusCode: response.status,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(errorData)
+      };
+    }
+
     const data = await response.json();
-    console.log('Response from backend:', data);
+    console.log('Success response from backend:', data);
 
     return {
       statusCode: response.status,
@@ -67,7 +96,7 @@ export const handler: Handler = async (event) => {
     };
   } catch (error: any) {
     console.error('Auth function error:', error);
-    
+
     return {
       statusCode: 500,
       headers: {
@@ -76,7 +105,8 @@ export const handler: Handler = async (event) => {
       },
       body: JSON.stringify({
         message: 'Internal server error in auth function',
-        error: error?.message || 'Unknown error'
+        error: error?.message || 'Unknown error',
+        details: error?.toString()
       })
     };
   }

@@ -8,7 +8,7 @@ import { connectDB } from './config/database.js';
 import { config } from 'dotenv';
 import authRoutes from './routes/auth.js';
 import voicesRoutes from './routes/voices.js';
-import { auth } from './middleware/auth.js';
+import { auth, addCorsHeaders } from './middleware/auth.js';
 
 config();
 
@@ -33,6 +33,9 @@ const corsOptions = {
     exposedHeaders: ['Set-Cookie']
 };
 app.use(cors(corsOptions));
+
+// Add custom CORS headers
+app.use(addCorsHeaders);
 
 // Pre-flight requests
 app.options('*', cors(corsOptions));

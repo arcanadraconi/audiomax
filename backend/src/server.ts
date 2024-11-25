@@ -25,16 +25,23 @@ app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration
 const corsOptions = {
-    origin: ['http://localhost:5174', 'http://localhost:5173'],
+    origin: process.env.CORS_ALLOWED_ORIGINS?.split(',') || ['http://localhost:5174', 'http://localhost:5173'],
     credentials: true,
     optionsSuccessStatus: 200,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+    exposedHeaders: ['Set-Cookie']
 };
 app.use(cors(corsOptions));
 
+// Pre-flight requests
+app.options('*', cors(corsOptions));
+
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "unsafe-none" }
+}));
 app.use(morgan(process.env.NODE_ENV === 'development' ? 'dev' : 'combined'));
 
 // Rate limiting
@@ -58,7 +65,7 @@ app.get('/health', (_req: Request, res: Response) => {
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/voices', voicesRoutes); // Add voices routes
+app.use('/api/voices', voicesRoutes);
 
 // Protected route example
 app.get('/api/protected', auth, (req: Request, res: Response) => {

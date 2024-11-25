@@ -46,7 +46,8 @@ const userSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
-    minlength: 8
+    minlength: 8,
+    select: false // Hide by default but allow explicit selection
   },
   firstName: {
     type: String,
@@ -132,7 +133,7 @@ userSchema.methods.comparePassword = async function(candidatePassword: string): 
 
 // Static method to find user by email
 userSchema.statics.findByEmail = function(email: string) {
-  return this.findOne({ email }).exec();
+  return this.findOne({ email }).select('+password').exec();
 };
 
 // Ensure indexes

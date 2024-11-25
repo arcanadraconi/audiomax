@@ -18,12 +18,12 @@ export const connectDB = async () => {
   try {
     console.log('Attempting to connect to MongoDB...');
     console.log('Database Name:', DATABASE_NAME);
-    console.log('Connection URL:', DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//<credentials>@')); // Log URL without credentials
+    console.log('Connection URL:', DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//<credentials>@'));
 
     await mongoose.connect(DATABASE_URL, options);
     console.log('MongoDB Atlas connected successfully');
     
-    // Log connection details
+    // Log detailed connection info
     const { host, port, name } = mongoose.connection;
     console.log('Connection Details:', {
       host,
@@ -33,12 +33,37 @@ export const connectDB = async () => {
       models: Object.keys(mongoose.models)
     });
 
-    // Test database operation
-    try {
-      const collections = await mongoose.connection.db.listCollections().toArray();
-      console.log('Available collections:', collections.map(c => c.name));
-    } catch (error) {
-      console.error('Error listing collections:', error);
+    // Get database stats
+    const db = mongoose.connection.db;
+    const stats = await db.stats();
+    console.log('Database Stats:', {
+      collections: stats.collections,
+      views: stats.views,
+      objects: stats.objects,
+      avgObjSize: stats.avgObjSize,
+      dataSize: stats.dataSize,
+      storageSize: stats.storageSize,
+      indexes: stats.indexes,
+      indexSize: stats.indexSize
+    });
+
+    // List all collections
+    const collections = await db.listCollections().toArray();
+    console.log('Available Collections:', collections.map(c => c.name));
+
+    // Get users count
+    if (collections.some(c => c.name === 'users')) {
+      const usersCount = await db.collection('users').countDocuments();
+      console.log('Total Users:', usersCount);
+
+      // Get sample of recent users
+      const recentUsers = await db.collection('users')
+        .find({})
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .project({ email: 1, createdAt: 1, _id: 1 })
+        .toArray();
+      console.log('Recent Users:', recentUsers);
     }
   } catch (error) {
     console.error('MongoDB connection error:', error);

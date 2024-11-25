@@ -13,6 +13,90 @@ router.get('/verify-email/:token', verifyEmail);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password/:token', resetPassword);
 
+// Test database connection
+router.get('/test-db', async (_req, res) => {
+  try {
+    const dbState = mongoose.connection.readyState;
+    
+    // Define database info type
+    interface DbInfo {
+      status: string;
+      database?: string;
+      host?: string;
+      collections: string[];
+      userCount?: number;
+      userCountDetails?: {
+        mongoose: number;
+        direct: number;
+        noFilter: number;
+        active: number;
+        array: number;
+      };
+      recentUsers?: Array<{
+        id: string;
+        email: string;
+        createdAt: Date;
+      }>;
+    }
+
+    const dbInfo: DbInfo = {
+      status: dbState === 1 ? 'connected' :
+             dbState === 2 ? 'connecting' :
+             dbState === 3 ? 'disconnecting' :
+             'disconnected',
+      database: process.env.DATABASE_NAME,
+      host: mongoose.connection.host || undefined,
+      collections: Object.keys(mongoose.connection.collections)
+    };
+
+    if (dbState === 1) {
+      // Get user counts using different methods
+      const usersCollection = mongoose.connection.db.collection('users');
+      
+      const [
+        mongooseCount,
+        directCount,
+        noFilterCount,
+        activeCount,
+        allUsers
+      ] = await Promise.all([
+        User.countDocuments(),
+        usersCollection.countDocuments(),
+        usersCollection.countDocuments({}),
+        usersCollection.countDocuments({ status: 'active' }),
+        usersCollection.find({})
+          .sort({ createdAt: -1 })
+          .limit(5)
+          .project({ email: 1, createdAt: 1 })
+          .toArray()
+      ]);
+
+      dbInfo.userCountDetails = {
+        mongoose: mongooseCount,
+        direct: directCount,
+        noFilter: noFilterCount,
+        active: activeCount,
+        array: allUsers.length
+      };
+
+      dbInfo.userCount = directCount;
+      dbInfo.recentUsers = allUsers.map(user => ({
+        id: user._id.toString(),
+        email: user.email,
+        createdAt: user.createdAt
+      }));
+    }
+
+    res.json(dbInfo);
+  } catch (error: any) {
+    console.error('Database test error:', error);
+    res.status(500).json({
+      message: 'Database test failed',
+      error: error.message
+    });
+  }
+});
+
 // Verify user exists in database
 router.get('/verify/:userId', auth, async (req, res) => {
   try {
@@ -54,46 +138,6 @@ router.get('/verify/:userId', auth, async (req, res) => {
   } catch (error) {
     console.error('Verify user error:', error);
     res.status(500).json({ message: 'Error verifying user' });
-  }
-});
-
-// Test database connection
-router.get('/test-db', async (_req, res) => {
-  try {
-    const dbState = mongoose.connection.readyState;
-    
-    // Define database info type
-    interface DbInfo {
-      status: string;
-      database?: string;
-      host?: string;
-      collections: string[];
-      userCount?: number;
-    }
-
-    const dbInfo: DbInfo = {
-      status: dbState === 1 ? 'connected' :
-             dbState === 2 ? 'connecting' :
-             dbState === 3 ? 'disconnecting' :
-             'disconnected',
-      database: process.env.DATABASE_NAME,
-      host: mongoose.connection.host || undefined,
-      collections: Object.keys(mongoose.connection.collections)
-    };
-
-    if (dbState === 1) {
-      // Test database operation
-      const userCount = await User.countDocuments();
-      dbInfo.userCount = userCount;
-    }
-
-    res.json(dbInfo);
-  } catch (error: any) {
-    console.error('Database test error:', error);
-    res.status(500).json({
-      message: 'Database test failed',
-      error: error.message
-    });
   }
 });
 

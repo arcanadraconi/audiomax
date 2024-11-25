@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   const env = loadEnv(mode, process.cwd(), '');
-  
+
   return {
     plugins: [react()],
     define: {
@@ -28,6 +28,13 @@ export default defineConfig(({ mode }) => {
           target: 'https://play.ht',
           changeOrigin: true,
           secure: false
+        },
+        // Add proxy for our auth API
+        '/api/v1/auth': {
+          target: 'http://localhost:5000',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api\/v1/, '/api')
         }
       }
     }

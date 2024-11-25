@@ -58,50 +58,47 @@ if (!process.env.DISABLE_RATE_LIMITING) {
     app.use('/api/', limiter);
 }
 
+interface HealthInfo {
+    status: string;
+    version: string | undefined;
+    environment: string | undefined;
+    timestamp: string;
+    database?: {
+        status: string;
+        name?: string;
+        host?: string;
+        error?: string;
+    };
+}
+
 // Health check routes
 app.get('/health', (_req: Request, res: Response) => {
-    res.status(200).json({
+    const healthInfo: HealthInfo = {
         status: 'ok',
         version: process.env.API_VERSION,
         environment: process.env.NODE_ENV,
         timestamp: new Date().toISOString()
-    });
-});
+    };
 
-app.get('/health/db', async (_req: Request, res: Response) => {
+    // Add database status
     try {
         const dbState = mongoose.connection.readyState;
-        const dbStatus: {
-            status: string;
-            database: string | undefined;
-            host: string;
-            timestamp: string;
-            collections?: string[];
-        } = {
+        healthInfo.database = {
             status: dbState === 1 ? 'connected' :
                    dbState === 2 ? 'connecting' :
                    dbState === 3 ? 'disconnecting' :
                    'disconnected',
-            database: process.env.DATABASE_NAME,
-            host: mongoose.connection.host || 'unknown',
-            timestamp: new Date().toISOString()
+            name: process.env.DATABASE_NAME,
+            host: mongoose.connection.host || 'unknown'
         };
-
-        if (dbState === 1) {
-            // Test database operation
-            const collections = await mongoose.connection.db.listCollections().toArray();
-            dbStatus.collections = collections.map(c => c.name);
-        }
-
-        res.status(200).json(dbStatus);
     } catch (error: any) {
-        res.status(500).json({
+        healthInfo.database = {
             status: 'error',
-            message: 'Database health check failed',
-            error: error.message,
-            timestamp: new Date().toISOString()
-        });
+            error: error.message
+        };
     }
+
+    res.status(200).json(healthInfo);
 });
 
 // API routes

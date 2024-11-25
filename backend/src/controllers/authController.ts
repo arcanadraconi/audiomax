@@ -62,36 +62,27 @@ export const register: RequestHandler = async (req, res) => {
       updatedAt: new Date()
     };
 
-    let savedUser;
-    try {
-      // Try saving with Mongoose first
-      const user = new User(userData);
-      savedUser = await user.save();
-      console.log('User saved successfully with Mongoose:', savedUser._id);
-    } catch (mongooseError) {
-      console.error('Mongoose save failed, trying direct MongoDB insert:', mongooseError);
-      
-      // Fallback to direct MongoDB insert - password is already hashed
-      const result = await mongoose.connection.db.collection('users').insertOne(userData);
-      if (!result.insertedId) {
-        throw new Error('Failed to insert user document');
-      }
-      
-      savedUser = await User.findById(result.insertedId);
-      if (!savedUser) {
-        throw new Error('User document not found after insert');
-      }
-      console.log('User saved successfully with direct insert:', savedUser._id);
-    }
+    // Always use Mongoose model to ensure proper schema validation and middleware execution
+    const user = new User(userData);
+    const savedUser = await user.save();
+    console.log('User saved successfully:', savedUser._id);
     
     const token = generateToken(savedUser._id.toString());
 
     // Verify the user was actually saved
-    const verifyUser = await User.findById(savedUser._id);
+    const verifyUser = await User.findById(savedUser._id).select('+password');
     if (!verifyUser) {
       throw new Error('User verification failed after save');
     }
-    console.log('User verified in database:', verifyUser._id);
+    console.log('User verified in database:', {
+      id: verifyUser._id,
+      email: verifyUser.email,
+      hasPassword: !!verifyUser.password
+    });
+
+    // Test password verification
+    const passwordTest = await bcrypt.compare(password, verifyUser.password);
+    console.log('Password verification test:', passwordTest);
 
     res.status(201).json({
       token,
@@ -140,7 +131,8 @@ export const login: RequestHandler = async (req, res) => {
     console.log('Found user:', {
       id: user._id,
       email: user.email,
-      hasPassword: !!user.password
+      hasPassword: !!user.password,
+      passwordLength: user.password?.length
     });
 
     // Compare password using bcrypt directly

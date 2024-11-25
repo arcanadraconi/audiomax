@@ -7,9 +7,10 @@
     "frontend": "vite",
     "backend": "cd backend && npm run dev",
     "dev": "concurrently \"npm run frontend\" \"npm run backend\"",
-    "build": "vite build",
+    "build": "vite build && npm run build:functions",
+    "build:functions": "cd netlify/functions && npm install && tsc",
     "preview": "vite preview",
-    "install:all": "npm install && cd backend && npm install"
+    "install:all": "npm install && cd backend && npm install && cd ../../netlify/functions && npm install"
   },
   "author": "AUDIOMAX",
   "license": "MIT",
@@ -24,6 +25,7 @@
     "concurrently": "^8.2.2",
     "express": "^4.21.1",
     "lucide-react": "^0.294.0",
+    "mongoose": "^8.8.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.0.0",

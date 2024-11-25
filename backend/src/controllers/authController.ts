@@ -36,7 +36,7 @@ export const register: RequestHandler = async (req, res) => {
       return;
     }
 
-    // Hash password
+    // Always hash password before saving
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
@@ -71,7 +71,7 @@ export const register: RequestHandler = async (req, res) => {
     } catch (mongooseError) {
       console.error('Mongoose save failed, trying direct MongoDB insert:', mongooseError);
       
-      // Fallback to direct MongoDB insert
+      // Fallback to direct MongoDB insert - password is already hashed
       const result = await mongoose.connection.db.collection('users').insertOne(userData);
       if (!result.insertedId) {
         throw new Error('Failed to insert user document');
@@ -116,27 +116,36 @@ export const login: RequestHandler = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    console.log('Login attempt for email:', email);
     const user = await User.findOne({ email }).exec();
+    
     if (!user) {
+      console.log('User not found:', email);
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
 
     if (user.status === 'suspended') {
+      console.log('Suspended account login attempt:', email);
       res.status(403).json({ message: 'Account suspended. Please contact support.' });
       return;
     }
 
     if (user.status === 'deleted') {
+      console.log('Deleted account login attempt:', email);
       res.status(403).json({ message: 'Account deleted.' });
       return;
     }
 
-    const isMatch = await user.comparePassword(password);
+    // Compare password using bcrypt directly
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.log('Invalid password for user:', email);
       res.status(401).json({ message: 'Invalid credentials' });
       return;
     }
+
+    console.log('Successful login for user:', email);
 
     // Update last login
     user.lastLogin = new Date();

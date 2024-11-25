@@ -9,6 +9,7 @@ import { config } from 'dotenv';
 import authRoutes from './routes/auth.js';
 import voicesRoutes from './routes/voices.js';
 import { auth, addCorsHeaders } from './middleware/auth.js';
+import mongoose from 'mongoose';
 
 config();
 
@@ -57,13 +58,50 @@ if (!process.env.DISABLE_RATE_LIMITING) {
     app.use('/api/', limiter);
 }
 
-// Health check route
+// Health check routes
 app.get('/health', (_req: Request, res: Response) => {
     res.status(200).json({
         status: 'ok',
         version: process.env.API_VERSION,
-        environment: process.env.NODE_ENV
+        environment: process.env.NODE_ENV,
+        timestamp: new Date().toISOString()
     });
+});
+
+app.get('/health/db', async (_req: Request, res: Response) => {
+    try {
+        const dbState = mongoose.connection.readyState;
+        const dbStatus: {
+            status: string;
+            database: string | undefined;
+            host: string;
+            timestamp: string;
+            collections?: string[];
+        } = {
+            status: dbState === 1 ? 'connected' :
+                   dbState === 2 ? 'connecting' :
+                   dbState === 3 ? 'disconnecting' :
+                   'disconnected',
+            database: process.env.DATABASE_NAME,
+            host: mongoose.connection.host || 'unknown',
+            timestamp: new Date().toISOString()
+        };
+
+        if (dbState === 1) {
+            // Test database operation
+            const collections = await mongoose.connection.db.listCollections().toArray();
+            dbStatus.collections = collections.map(c => c.name);
+        }
+
+        res.status(200).json(dbStatus);
+    } catch (error: any) {
+        res.status(500).json({
+            status: 'error',
+            message: 'Database health check failed',
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
 });
 
 // API routes

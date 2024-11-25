@@ -117,7 +117,7 @@ export const login: RequestHandler = async (req, res) => {
     const { email, password } = req.body;
 
     console.log('Login attempt for email:', email);
-    const user = await User.findOne({ email }).exec();
+    const user = await User.findOne({ email }).select('+password').exec();
     
     if (!user) {
       console.log('User not found:', email);
@@ -137,8 +137,16 @@ export const login: RequestHandler = async (req, res) => {
       return;
     }
 
+    console.log('Found user:', {
+      id: user._id,
+      email: user.email,
+      hasPassword: !!user.password
+    });
+
     // Compare password using bcrypt directly
     const isMatch = await bcrypt.compare(password, user.password);
+    console.log('Password comparison result:', isMatch);
+
     if (!isMatch) {
       console.log('Invalid password for user:', email);
       res.status(401).json({ message: 'Invalid credentials' });
@@ -153,7 +161,7 @@ export const login: RequestHandler = async (req, res) => {
 
     const token = generateToken(user._id.toString());
 
-    res.json({
+    res.status(200).json({
       token,
       user: {
         id: user._id,

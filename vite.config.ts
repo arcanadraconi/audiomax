@@ -30,11 +30,10 @@ export default defineConfig(({ mode }) => {
           secure: false
         },
         // Add proxy for our auth API
-        '/api/v1/auth': {
+        '/api': {
           target: 'http://localhost:5000',
           changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/api\/v1/, '/api')
+          secure: false
         }
       }
     }

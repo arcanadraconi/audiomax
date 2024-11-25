@@ -66,7 +66,8 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
         throw new Error('Authentication required');
       }
 
-      const response = await fetch('/api/v2/voices', {
+      // Use the /api/voices endpoint which is redirected to PlayHT
+      const response = await fetch('/api/voices', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -77,9 +78,9 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
 
       if (!response.ok) {
         const text = await response.text();
-        console.error('PlayHT API Error Response:', text);
+        console.error('Voice API Error Response:', text);
         console.error('Response Status:', response.status);
-        console.error('Response Headers:', response.headers);
+        console.error('Response Headers:', Object.fromEntries(response.headers));
         try {
           const errorData = JSON.parse(text);
           throw new Error(errorData.message || 'Failed to fetch voice library');
@@ -89,6 +90,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       }
 
       const data = await response.json();
+      console.log('Voice library response:', data);
       setVoices(data);
       setFilteredVoices(data);
     } catch (err) {

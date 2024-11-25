@@ -28,7 +28,13 @@ const loadUserFromStorage = () => {
   return storedUser ? JSON.parse(storedUser) : null;
 };
 
-const API_URL = 'http://localhost:5000';
+// Get base API URL
+const getBaseUrl = () => {
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://localhost:5000';
+  }
+  return window.location.origin;
+};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => loadUserFromStorage());
@@ -58,7 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/login`, {
+      const baseUrl = getBaseUrl();
+      const url = `${baseUrl}/api/v1/auth/login`;
+      console.log('Login URL:', url);
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -67,12 +77,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: 'include'
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const rawResponse = await response.text();
+      console.log('Raw response:', rawResponse);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Login failed');
+        throw new Error(rawResponse || 'Login failed');
       }
 
-      const data = await response.json();
+      const data = JSON.parse(rawResponse);
       const userData = {
         id: data.user.id,
         email: data.user.email,
@@ -102,7 +117,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/api/auth/register`, {
+      const baseUrl = getBaseUrl();
+      const url = `${baseUrl}/api/v1/auth/register`;
+      console.log('Signup URL:', url);
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -111,12 +130,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         credentials: 'include'
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      const rawResponse = await response.text();
+      console.log('Raw response:', rawResponse);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Signup failed');
+        throw new Error(rawResponse || 'Signup failed');
       }
 
-      const data = await response.json();
+      const data = JSON.parse(rawResponse);
       const userData = {
         id: data.user.id,
         email: data.user.email,

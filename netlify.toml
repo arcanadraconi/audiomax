@@ -16,7 +16,13 @@
 
 [[redirects]]
   from = "/api/auth/*"
-  to = "/.netlify/functions/auth/:splat"
+  to = "https://audiomax.onrender.com/api/auth/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/.netlify/functions/auth/*"
+  to = "https://audiomax.onrender.com/api/auth/:splat"
   status = 200
   force = true
 

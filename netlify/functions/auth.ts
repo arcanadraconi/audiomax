@@ -57,6 +57,15 @@ export const handler: Handler = async (event) => {
       }
     }
 
+    // Check backend health before proceeding
+    try {
+      const healthCheck = await fetch('https://audiomax.onrender.com/health');
+      const healthStatus = await healthCheck.json();
+      console.log('Backend health status:', healthStatus);
+    } catch (error) {
+      console.error('Backend health check failed:', error);
+    }
+
     console.log('Forwarding request to:', `${RENDER_API_URL}/${path}`);
     console.log('Request body:', parsedBody);
     console.log('Request headers:', event.headers);
@@ -65,26 +74,33 @@ export const handler: Handler = async (event) => {
     const response = await fetch(`${RENDER_API_URL}/${path}`, {
       method: event.httpMethod,
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
       },
       body: event.body
     });
 
+    const responseData = await response.json();
+    console.log('Backend response:', {
+      status: response.status,
+      data: responseData,
+      contentType: response.headers.get('content-type')
+    });
+
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Backend error response:', errorData);
+      console.error('Backend error:', responseData);
       return {
         statusCode: response.status,
         headers: {
           ...headers,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(errorData)
+        body: JSON.stringify({
+          message: 'Backend error',
+          error: responseData
+        })
       };
     }
-
-    const data = await response.json();
-    console.log('Success response from backend:', data);
 
     return {
       statusCode: response.status,
@@ -92,10 +108,14 @@ export const handler: Handler = async (event) => {
         ...headers,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(data)
+      body: JSON.stringify(responseData)
     };
   } catch (error: any) {
-    console.error('Auth function error:', error);
+    console.error('Auth function error:', {
+      message: error.message,
+      stack: error.stack,
+      details: error
+    });
 
     return {
       statusCode: 500,

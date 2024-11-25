@@ -2,10 +2,19 @@ import { RequestHandler } from 'express';
 import { User } from '../models/User';
 import { generateToken, validateEmail, validatePassword } from '../middleware/auth';
 import * as crypto from 'crypto';
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
 export const register: RequestHandler = async (req, res) => {
   try {
     const { email, password, firstName, lastName } = req.body;
+
+    // Log MongoDB connection status
+    console.log('MongoDB Connection Status:', {
+      readyState: mongoose.connection.readyState,
+      host: mongoose.connection.host,
+      name: mongoose.connection.name
+    });
 
     if (!validateEmail(email)) {
       res.status(400).json({ message: 'Invalid email format' });
@@ -19,41 +28,86 @@ export const register: RequestHandler = async (req, res) => {
       return;
     }
 
+    console.log('Checking for existing user with email:', email);
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      console.log('User already exists:', existingUser._id);
       res.status(400).json({ message: 'Email already registered' });
       return;
     }
+
+    // Hash password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
     
-    const user = new User({
+    // Create user document
+    const userData = {
       email,
-      password,
+      password: hashedPassword,
       firstName,
       lastName,
-      isVerified: true, // Temporarily set to true for development
+      isVerified: true,
       role: 'user',
+      status: 'active',
+      subscription: {
+        plan: 'free',
+        status: 'active'
+      },
       settings: {
         theme: 'system',
         emailNotifications: true,
         pushNotifications: false
-      }
-    });
+      },
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
 
-    await user.save();
+    let savedUser;
+    try {
+      // Try saving with Mongoose first
+      const user = new User(userData);
+      savedUser = await user.save();
+      console.log('User saved successfully with Mongoose:', savedUser._id);
+    } catch (mongooseError) {
+      console.error('Mongoose save failed, trying direct MongoDB insert:', mongooseError);
+      
+      // Fallback to direct MongoDB insert
+      const result = await mongoose.connection.db.collection('users').insertOne(userData);
+      if (!result.insertedId) {
+        throw new Error('Failed to insert user document');
+      }
+      
+      savedUser = await User.findById(result.insertedId);
+      if (!savedUser) {
+        throw new Error('User document not found after insert');
+      }
+      console.log('User saved successfully with direct insert:', savedUser._id);
+    }
     
-    const token = generateToken(user._id.toString());
+    const token = generateToken(savedUser._id.toString());
+
+    // Verify the user was actually saved
+    const verifyUser = await User.findById(savedUser._id);
+    if (!verifyUser) {
+      throw new Error('User verification failed after save');
+    }
+    console.log('User verified in database:', verifyUser._id);
 
     res.status(201).json({
       token,
       user: {
-        id: user._id,
-        email: user.email,
-        role: user.role,
-        settings: user.settings
+        id: savedUser._id,
+        email: savedUser.email,
+        role: savedUser.role,
+        settings: savedUser.settings
       }
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Registration error:', {
+      error,
+      stack: error.stack,
+      connectionState: mongoose.connection.readyState
+    });
     res.status(500).json({ message: 'Server error during registration' });
   }
 };
@@ -84,12 +138,6 @@ export const login: RequestHandler = async (req, res) => {
       return;
     }
 
-    // Remove email verification check for development
-    // if (!user.isVerified) {
-    //   res.status(401).json({ message: 'Please verify your email first' });
-    //   return;
-    // }
-
     // Update last login
     user.lastLogin = new Date();
     await user.save();
@@ -110,7 +158,11 @@ export const login: RequestHandler = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Login error:', error);
+    console.error('Login error:', {
+      error,
+      stack: error.stack,
+      connectionState: mongoose.connection.readyState
+    });
     res.status(500).json({ message: 'Server error during login' });
   }
 };
@@ -142,7 +194,11 @@ export const verifyEmail: RequestHandler = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Email verification error:', error);
+    console.error('Email verification error:', {
+      error,
+      stack: error.stack,
+      connectionState: mongoose.connection.readyState
+    });
     res.status(500).json({ message: 'Server error during email verification' });
   }
 };
@@ -167,7 +223,11 @@ export const forgotPassword: RequestHandler = async (req, res) => {
 
     res.json({ message: 'Password reset instructions sent to your email' });
   } catch (error) {
-    console.error('Forgot password error:', error);
+    console.error('Forgot password error:', {
+      error,
+      stack: error.stack,
+      connectionState: mongoose.connection.readyState
+    });
     res.status(500).json({ message: 'Server error during password reset request' });
   }
 };
@@ -201,7 +261,11 @@ export const resetPassword: RequestHandler = async (req, res) => {
 
     res.json({ message: 'Password reset successful' });
   } catch (error) {
-    console.error('Reset password error:', error);
+    console.error('Reset password error:', {
+      error,
+      stack: error.stack,
+      connectionState: mongoose.connection.readyState
+    });
     res.status(500).json({ message: 'Server error during password reset' });
   }
 };

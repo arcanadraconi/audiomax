@@ -10,14 +10,14 @@ if (!DATABASE_URL) {
 }
 
 const options: ConnectOptions = {
-  dbName: DATABASE_NAME,
+  dbName: DATABASE_NAME || 'audiomax',
   retryWrites: true,
 };
 
 export const connectDB = async () => {
   try {
     console.log('Attempting to connect to MongoDB...');
-    console.log('Database Name:', DATABASE_NAME);
+    console.log('Database Name:', options.dbName);
     console.log('Connection URL:', DATABASE_URL.replace(/\/\/[^:]+:[^@]+@/, '//<credentials>@'));
 
     await mongoose.connect(DATABASE_URL, options);
@@ -64,6 +64,32 @@ export const connectDB = async () => {
         .project({ email: 1, createdAt: 1, _id: 1 })
         .toArray();
       console.log('Recent Users:', recentUsers);
+    }
+
+    // Test database write permissions
+    try {
+      const testCollection = db.collection('test');
+      const result = await testCollection.insertOne({
+        message: 'Database write test',
+        timestamp: new Date(),
+        environment: process.env.NODE_ENV
+      });
+      console.log('Database write test successful:', result);
+
+      if (result.insertedId) {
+        await testCollection.deleteOne({ _id: result.insertedId });
+        console.log('Test document cleanup successful');
+      }
+    } catch (writeError) {
+      console.error('Database write test failed:', writeError);
+      if (writeError instanceof Error) {
+        console.error('Write Error Details:', {
+          name: writeError.name,
+          message: writeError.message,
+          stack: writeError.stack
+        });
+      }
+      throw writeError;
     }
   } catch (error) {
     console.error('MongoDB connection error:', error);

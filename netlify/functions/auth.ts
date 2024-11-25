@@ -26,7 +26,7 @@ export const handler: Handler = async (event) => {
     let parsedBody;
     try {
       parsedBody = event.body ? JSON.parse(event.body) : {};
-      console.log('[Auth Function] Parsed request body:', parsedBody);
+      console.log('[Auth Function] Request body:', parsedBody);
     } catch (error) {
       console.error('[Auth Function] Error parsing request body:', error);
       return {
@@ -57,27 +57,15 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    // Check backend health before proceeding
-    try {
-      console.log('[Auth Function] Checking backend health...');
-      const healthCheck = await fetch('https://audiomax.onrender.com/health');
-      const healthStatus = await healthCheck.json();
-      console.log('[Auth Function] Backend health status:', healthStatus);
-    } catch (error) {
-      console.error('[Auth Function] Backend health check failed:', error);
-    }
+    // Make direct request to render.com backend
+    const fullUrl = `${RENDER_API_URL}/${path}`;
+    console.log('[Auth Function] Making request to:', fullUrl);
 
-    console.log(`[Auth Function] Forwarding ${event.httpMethod} request to: ${RENDER_API_URL}/${path}`);
-    console.log('[Auth Function] Request body:', parsedBody);
-    console.log('[Auth Function] Request headers:', event.headers);
-
-    // Forward the request to backend
-    const response = await fetch(`${RENDER_API_URL}/${path}`, {
+    const response = await fetch(fullUrl, {
       method: event.httpMethod,
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Request-ID': `netlify-${Date.now()}`
+        'Accept': 'application/json'
       },
       body: event.body
     });
@@ -85,33 +73,27 @@ export const handler: Handler = async (event) => {
     const responseData = await response.json();
     console.log('[Auth Function] Backend response:', {
       status: response.status,
-      statusText: response.statusText,
-      data: responseData,
-      contentType: response.headers.get('content-type')
+      data: responseData
     });
 
     // Check if we got a user ID in the response
     if (responseData.user && responseData.user.id) {
-      console.log('[Auth Function] User created/authenticated with ID:', responseData.user.id);
-    } else {
-      console.warn('[Auth Function] Response missing user ID:', responseData);
-    }
-
-    if (!response.ok) {
-      console.error('[Auth Function] Backend error:', responseData);
-      return {
-        statusCode: response.status,
+      console.log('[Auth Function] User ID:', responseData.user.id);
+      
+      // Verify the user was created
+      const verifyResponse = await fetch(`${RENDER_API_URL}/verify/${responseData.user.id}`, {
+        method: 'GET',
         headers: {
-          ...headers,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          message: 'Backend error',
-          error: responseData,
-          requestPath: path,
-          timestamp: new Date().toISOString()
-        })
-      };
+          'Accept': 'application/json',
+          'Authorization': `Bearer ${responseData.token}`
+        }
+      });
+      
+      if (verifyResponse.ok) {
+        console.log('[Auth Function] User verified in database');
+      } else {
+        console.warn('[Auth Function] User verification failed');
+      }
     }
 
     return {
@@ -125,8 +107,7 @@ export const handler: Handler = async (event) => {
   } catch (error: any) {
     console.error('[Auth Function] Error:', {
       message: error.message,
-      stack: error.stack,
-      details: error
+      stack: error.stack
     });
 
     return {
@@ -137,9 +118,7 @@ export const handler: Handler = async (event) => {
       },
       body: JSON.stringify({
         message: 'Internal server error in auth function',
-        error: error?.message || 'Unknown error',
-        details: error?.toString(),
-        timestamp: new Date().toISOString()
+        error: error?.message || 'Unknown error'
       })
     };
   }

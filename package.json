@@ -23,6 +23,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "concurrently": "^8.2.2",
+    "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "lucide-react": "^0.294.0",
     "mongoose": "^8.8.2",

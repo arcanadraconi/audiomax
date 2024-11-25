@@ -22,6 +22,28 @@ export const handler: Handler = async (event) => {
     // Get the path segment after /auth/
     const path = event.path.replace('/.netlify/functions/auth/', '');
     
+    console.log('Forwarding request to:', `${RENDER_API_URL}/${path}`);
+    console.log('Request body:', event.body);
+    console.log('Request headers:', event.headers);
+
+    // Check if render.com is accessible
+    try {
+      await fetch(RENDER_API_URL);
+    } catch (error) {
+      console.error('Render.com backend is not accessible:', error);
+      return {
+        statusCode: 503,
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'Backend service is currently unavailable. Please try again later.',
+          error: 'BACKEND_UNAVAILABLE'
+        })
+      };
+    }
+
     // Forward the request to render.com backend
     const response = await fetch(`${RENDER_API_URL}/${path}`, {
       method: event.httpMethod,
@@ -33,6 +55,7 @@ export const handler: Handler = async (event) => {
     });
 
     const data = await response.json();
+    console.log('Response from backend:', data);
 
     return {
       statusCode: response.status,
@@ -42,7 +65,7 @@ export const handler: Handler = async (event) => {
       },
       body: JSON.stringify(data)
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('Auth function error:', error);
     
     return {
@@ -52,7 +75,8 @@ export const handler: Handler = async (event) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        message: 'Internal server error in auth function'
+        message: 'Internal server error in auth function',
+        error: error?.message || 'Unknown error'
       })
     };
   }

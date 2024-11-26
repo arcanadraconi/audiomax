@@ -72,6 +72,7 @@ export const handler: Handler = async (event) => {
     const fullUrl = `${RENDER_API_URL}/${path}`;
     console.log('[Auth Function] Making request to:', fullUrl);
     console.log('[Auth Function] Request headers:', requestHeaders);
+    console.log('[Auth Function] Request method:', event.httpMethod);
 
     const response = await fetch(fullUrl, {
       method: event.httpMethod,
@@ -82,6 +83,14 @@ export const handler: Handler = async (event) => {
     let responseData;
     const responseText = await response.text();
     console.log('[Auth Function] Raw response:', responseText);
+    console.log('[Auth Function] Response status:', response.status);
+
+    // Convert Headers to plain object
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    console.log('[Auth Function] Response headers:', responseHeaders);
 
     try {
       responseData = JSON.parse(responseText);
@@ -91,7 +100,8 @@ export const handler: Handler = async (event) => {
         statusCode: 500,
         headers,
         body: JSON.stringify({
-          message: 'Invalid response from authentication server'
+          message: 'Invalid response from authentication server',
+          rawResponse: responseText
         })
       };
     }
@@ -118,24 +128,26 @@ export const handler: Handler = async (event) => {
       });
       
       if (verifyResponse.ok) {
-        console.log('[Auth Function] User verified in database');
+        const verifyData = await verifyResponse.json();
+        console.log('[Auth Function] User verified in database:', verifyData);
       } else {
-        console.warn('[Auth Function] User verification failed:', await verifyResponse.text());
+        const verifyError = await verifyResponse.text();
+        console.warn('[Auth Function] User verification failed:', verifyError);
       }
     }
 
     // Forward response headers
-    const responseHeaders = { ...headers };
+    const finalHeaders = { ...headers };
 
     // Forward any Set-Cookie headers
     const setCookieHeader = response.headers.get('Set-Cookie');
     if (setCookieHeader) {
-      responseHeaders['Set-Cookie'] = setCookieHeader;
+      finalHeaders['Set-Cookie'] = setCookieHeader;
     }
 
     return {
       statusCode: response.status,
-      headers: responseHeaders,
+      headers: finalHeaders,
       body: JSON.stringify(responseData)
     };
   } catch (error: any) {

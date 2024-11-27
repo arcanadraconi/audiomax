@@ -7,9 +7,27 @@ import { VoiceCloning } from '../components/studio/VoiceCloning';
 import { VoiceLibrary } from '../components/studio/VoiceLibrary';
 import { Navbar } from '../components/layout/Navbar'
 
+interface Voice {
+  id: string;
+  name: string;
+  sample: string;
+  accent: string;
+  age: string;
+  gender: string;
+  language: string;
+  language_code: string;
+  loudness: string;
+  style: string;
+  tempo: string;
+  texture: string;
+  is_cloned: boolean;
+  voice_engine: string;
+}
+
 export default function Studio() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -26,12 +44,16 @@ export default function Studio() {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
+  const handleVoiceSelect = (voice: Voice) => {
+    setSelectedVoice(voice);
+  };
+
   return (
     <div className="w-full top-0 text-white font-sans">
       {/* Email Header */}
-     
+
       <Navbar />
-    
+
 
       {/* Main Content */}
       <div className="container mx-auto px-4 mt-8">
@@ -101,7 +123,7 @@ export default function Studio() {
             <VoiceCloning />
 
             {/* Voice Library */}
-            <VoiceLibrary />
+            <VoiceLibrary onVoiceSelect={handleVoiceSelect} />
           </div>
         </div>
       </div>

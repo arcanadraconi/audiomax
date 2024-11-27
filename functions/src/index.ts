@@ -1,26 +1,25 @@
+import {onRequest} from "firebase-functions/v2/https";
+import fetch, {RequestInit} from "node-fetch";
 import * as functions from "firebase-functions";
-import fetch, { RequestInit } from "node-fetch";
+import {Request, Response} from "express";
 
-export const getVoices = functions.https.onRequest(async (request, response) => {
-  response.set("Access-Control-Allow-Origin", "*");
-
-  if (request.method === "OPTIONS") {
-    response.set("Access-Control-Allow-Methods", "GET");
-    response.set("Access-Control-Allow-Headers", "Content-Type");
-    response.set("Access-Control-Max-Age", "3600");
-    response.status(204).send("");
-    return;
-  }
-
-  const secretKey = process.env.PLAYHT_SECRET_KEY;
-  const userId = process.env.PLAYHT_USER_ID;
-
-  if (!secretKey || !userId) {
-    response.status(500).json({error: "Missing API credentials"});
-    return;
-  }
-
+export const getVoices = onRequest({
+  cors: true,
+  maxInstances: 10,
+  invoker: "public", // Allow unauthenticated access
+  region: "us-central1",
+}, async (request: Request, response: Response) => {
   try {
+    const config = functions.config();
+    const secretKey = config.playht?.secret_key;
+    const userId = config.playht?.user_id;
+
+    if (!secretKey || !userId) {
+      console.error("Missing API credentials:", {config});
+      response.status(500).json({error: "Missing API credentials"});
+      return;
+    }
+
     const fetchOptions: RequestInit = {
       method: "GET",
       headers: {
@@ -30,7 +29,15 @@ export const getVoices = functions.https.onRequest(async (request, response) => 
       },
     };
 
-    const playhtResponse = await fetch("https://api.play.ht/api/v2/voices", fetchOptions);
+    console.log("Fetching voices with config:", {
+      secretKey: secretKey.substring(0, 4) + "...",
+      userId: userId.substring(0, 4) + "...",
+    });
+
+    const playhtResponse = await fetch(
+      "https://api.play.ht/api/v2/voices",
+      fetchOptions,
+    );
 
     if (!playhtResponse.ok) {
       const text = await playhtResponse.text();

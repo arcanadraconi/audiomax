@@ -7,8 +7,8 @@ interface AudioPlayerProps {
   audioUrl?: string;
 }
 
-export function AudioPlayer({ 
-  title = 'Generated audio title', 
+export function AudioPlayer({
+  title = 'Generated audio title',
   audioUrl
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -121,12 +121,12 @@ export function AudioPlayer({
       )}
 
       <div className="flex flex-col gap-2">
-        <div 
+        <div
           ref={progressBarRef}
           className="h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer"
           onClick={handleProgressClick}
         >
-          <div 
+          <div
             className="h-full bg-primary transition-all duration-100"
             style={{ width: `${progress}%` }}
           />
@@ -134,9 +134,9 @@ export function AudioPlayer({
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Button 
-              variant="ghost" 
-              size="icon" 
+            <Button
+              variant="ghost"
+              size="icon"
               className="text-white/60 hover:bg-white/10 transition-colors duration-300"
               onClick={handlePlayPause}
               disabled={!audioUrl}

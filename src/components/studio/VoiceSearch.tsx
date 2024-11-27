@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 
@@ -56,21 +57,11 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/v2/voices', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.PLAYHT_SECRET_KEY}`,
-          'X-User-ID': import.meta.env.PLAYHT_USER_ID
-        }
-      });
+      const response = await fetch('/api/v2/voices');
 
       if (!response.ok) {
         const text = await response.text();
         console.error('Voice API Error Response:', text);
-        console.error('Response Status:', response.status);
-        console.error('Response Headers:', Object.fromEntries(response.headers));
         throw new Error('Failed to fetch voice library');
       }
 
@@ -87,7 +78,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   };
 
   const fetchClonedVoices = async () => {
-    if (!import.meta.env.ENABLE_VOICE_CLONING) {
+    if (!import.meta.env.VITE_ENABLE_VOICE_CLONING) {
       setError('Voice cloning is not enabled');
       return;
     }
@@ -142,7 +133,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   return (
     <div className="relative" ref={dropdownRef}>
       <div className="relative">
-        <Search className="absolute left-3 z-50 top-1/2 transform -translate-y-1/2 text-white/40" />
+        <Search className="absolute left-3 z-10 top-1/2 transform -translate-y-1/2 text-white/40" />
         <input
           placeholder={isLibraryMode ? "Search voice library..." : "Search your voices..."}
           value={searchTerm}

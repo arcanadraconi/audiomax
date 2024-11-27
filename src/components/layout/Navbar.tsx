@@ -1,17 +1,31 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../ui/button';
 import { Menu, X, Settings, LogOut } from 'lucide-react';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../lib/firebase';
+import { useEffect } from 'react';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUserEmail(user?.email || null);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate('/');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   return (
@@ -19,7 +33,7 @@ export function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <span className="text-white/80">{user?.email}</span>
+            <span className="text-white/80">{userEmail}</span>
           </div>
 
           {/* Desktop Navigation */}
@@ -27,7 +41,12 @@ export function Navbar() {
             <Button variant="ghost" size="icon" className="text-white/60 hover:bg-white/10 transition-colors duration-300">
               <Settings className="h-5 w-5" />
             </Button>
-            <Button variant="ghost" size="icon" className="text-white/60 hover:bg-white/10 transition-colors duration-300" onClick={handleLogout}>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="text-white/60 hover:bg-white/10 transition-colors duration-300"
+              onClick={handleLogout}
+            >
               <LogOut className="h-5 w-5" />
             </Button>
           </div>
@@ -45,7 +64,10 @@ export function Navbar() {
           <div className="md:hidden py-4">
             <div className="flex flex-col space-y-4">
               <Link to="/settings" className="text-white/60 hover:text-white transition-colors duration-300">Settings</Link>
-              <button onClick={handleLogout} className="text-white/60 hover:text-white transition-colors duration-300 text-left">
+              <button 
+                onClick={handleLogout} 
+                className="text-white/60 hover:text-white transition-colors duration-300 text-left"
+              >
                 Logout
               </button>
             </div>

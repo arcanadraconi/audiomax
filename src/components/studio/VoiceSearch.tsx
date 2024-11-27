@@ -56,22 +56,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setIsLoading(true);
     setError(null);
     try {
-      // First, make an OPTIONS request to check CORS
-      const preflightResponse = await fetch('https://api.play.ht/api/v2/voices', {
-        method: 'OPTIONS',
-        headers: {
-          'Accept': 'application/json',
-          'Access-Control-Request-Method': 'GET',
-          'Access-Control-Request-Headers': 'Authorization, X-User-ID'
-        }
-      });
-
-      if (!preflightResponse.ok) {
-        console.error('CORS preflight failed:', preflightResponse.status);
-      }
-
-      // Then make the actual request
-      const response = await fetch('https://api.play.ht/api/v2/voices', {
+      const response = await fetch('/api/v2/voices', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -86,7 +71,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
         console.error('Voice API Error Response:', text);
         console.error('Response Status:', response.status);
         console.error('Response Headers:', Object.fromEntries(response.headers));
-        throw new Error(`Failed to fetch voice library: ${response.status}`);
+        throw new Error('Failed to fetch voice library');
       }
 
       const data = await response.json();

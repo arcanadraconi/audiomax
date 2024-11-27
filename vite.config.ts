@@ -9,10 +9,11 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      // Existing env variables
-      'import.meta.env.OPENROUTER_API_KEY': JSON.stringify(env.OPENROUTER_API_KEY),
-      'import.meta.env.PLAYHT_SECRET_KEY': JSON.stringify(env.PLAYHT_SECRET_KEY),
-      'import.meta.env.PLAYHT_USER_ID': JSON.stringify(env.PLAYHT_USER_ID),
+      // PlayHT env variables
+      'import.meta.env.VITE_PLAYHT_SECRET_KEY': JSON.stringify(env.VITE_PLAYHT_SECRET_KEY),
+      'import.meta.env.VITE_PLAYHT_USER_ID': JSON.stringify(env.VITE_PLAYHT_USER_ID),
+      // OpenRouter env variables
+      'import.meta.env.VITE_OPENROUTER_API_KEY': JSON.stringify(env.VITE_OPENROUTER_API_KEY),
       // Firebase env variables
       'import.meta.env.VITE_FIREBASE_API_KEY': JSON.stringify(env.VITE_FIREBASE_API_KEY),
       'import.meta.env.VITE_FIREBASE_AUTH_DOMAIN': JSON.stringify(env.VITE_FIREBASE_AUTH_DOMAIN),
@@ -24,25 +25,21 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        '/api/v2/voices': {
+        '/api/v2': {
           target: 'https://api.play.ht',
           changeOrigin: true,
           secure: false,
-          headers: {
-            'Authorization': `Bearer ${env.PLAYHT_SECRET_KEY}`,
-            'X-User-ID': env.PLAYHT_USER_ID
+          rewrite: (path) => path.replace(/^\/api\/v2/, '/api/v2'),
+          configure: (proxy, options) => {
+            proxy.on('proxyReq', (proxyReq, req, res) => {
+              proxyReq.setHeader('Authorization', `Bearer ${env.VITE_PLAYHT_SECRET_KEY}`);
+              proxyReq.setHeader('X-User-ID', env.VITE_PLAYHT_USER_ID);
+              proxyReq.setHeader('Origin', 'https://api.play.ht');
+              proxyReq.setHeader('Access-Control-Allow-Origin', '*');
+              proxyReq.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+              proxyReq.setHeader('Access-Control-Allow-Headers', 'Authorization, X-User-ID, Content-Type');
+            });
           }
-        },
-        '/samples': {
-          target: 'https://play.ht',
-          changeOrigin: true,
-          secure: false
-        },
-        // Add proxy for our auth API
-        '/api': {
-          target: 'http://localhost:5000',
-          changeOrigin: true,
-          secure: false
         }
       }
     },

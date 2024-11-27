@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Play, Pause } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 interface Voice {
   id: string;
@@ -23,9 +23,6 @@ interface VoiceSearchProps {
   onVoiceSelect: (voice: Voice) => void;
 }
 
-const SAMPLE_TEXT = "You know you have the choice... I'll let you decide what works best for you.";
-const VISIBLE_VOICES = 3;
-
 export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [filteredVoices, setFilteredVoices] = useState<Voice[]>([]);
@@ -33,10 +30,8 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [currentPlayingId, setCurrentPlayingId] = useState<string | null>(null);
   const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (isLibraryMode) {
@@ -61,18 +56,13 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setIsLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('Authentication required');
-      }
-
-      // Use the /api/voices endpoint which is redirected to PlayHT
-      const response = await fetch('/api/voices', {
+      const response = await fetch('/api/v2/voices', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${import.meta.env.PLAYHT_SECRET_KEY}`,
+          'X-User-ID': import.meta.env.PLAYHT_USER_ID
         }
       });
 
@@ -81,12 +71,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
         console.error('Voice API Error Response:', text);
         console.error('Response Status:', response.status);
         console.error('Response Headers:', Object.fromEntries(response.headers));
-        try {
-          const errorData = JSON.parse(text);
-          throw new Error(errorData.message || 'Failed to fetch voice library');
-        } catch (parseError) {
-          throw new Error(`Failed to fetch voice library: ${response.statusText}`);
-        }
+        throw new Error('Failed to fetch voice library');
       }
 
       const data = await response.json();
@@ -102,6 +87,10 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   };
 
   const fetchClonedVoices = async () => {
+    if (!import.meta.env.ENABLE_VOICE_CLONING) {
+      setError('Voice cloning is not enabled');
+      return;
+    }
     // TODO: Implement cloned voices fetch
     setVoices([]);
     setFilteredVoices([]);
@@ -148,28 +137,6 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setSearchTerm('');
     setShowDropdown(false);
     setFilteredVoices([]);
-  };
-
-  const playVoiceSample = async (voice: Voice, event?: React.MouseEvent) => {
-    event?.stopPropagation();
-
-    if (currentPlayingId === voice.id) {
-      audioRef.current?.pause();
-      setCurrentPlayingId(null);
-      return;
-    }
-
-    if (audioRef.current) {
-      audioRef.current.pause();
-    }
-
-    audioRef.current = new Audio(voice.sample);
-    audioRef.current.play();
-    setCurrentPlayingId(voice.id);
-
-    audioRef.current.onended = () => {
-      setCurrentPlayingId(null);
-    };
   };
 
   return (

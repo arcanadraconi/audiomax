@@ -61,6 +61,10 @@ export function InputStudio() {
   const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Check if voice cloning is enabled from environment
+  const isVoiceCloningEnabled = import.meta.env.ENABLE_VOICE_CLONING === 'true';
+  const isCustomVoicesEnabled = import.meta.env.ENABLE_CUSTOM_VOICES === 'true';
+
   const validateFile = (file: File): string | null => {
     // Check file size
     if (file.size > MAX_FILE_SIZE) {
@@ -200,20 +204,22 @@ export function InputStudio() {
       <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 mb-2 border border-white/10 shadow-lg">
         <div className="flex justify-between items-center mb-2">
           <span className="text-white/80">Voice's choice</span>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-white/60">Library</span>
-            <button
-              onClick={() => setIsLibraryMode(!isLibraryMode)}
-              className="w-10 h-5 bg-white/20 rounded-full relative"
-            >
-              <div 
-                className={`absolute w-4 h-4 bg-primary rounded-full top-0.5 transition-all duration-300 ${
-                  isLibraryMode ? 'left-0.5' : 'left-[calc(100%-20px)]'
-                }`}
-              />
-            </button>
-            <span className="text-sm text-white/60">Clone</span>
-          </div>
+          {isVoiceCloningEnabled && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-white/60">Library</span>
+              <button
+                onClick={() => setIsLibraryMode(!isLibraryMode)}
+                className="w-10 h-5 bg-white/20 rounded-full relative"
+              >
+                <div 
+                  className={`absolute w-4 h-4 bg-primary rounded-full top-0.5 transition-all duration-300 ${
+                    isLibraryMode ? 'left-0.5' : 'left-[calc(100%-20px)]'
+                  }`}
+                />
+              </button>
+              <span className="text-sm text-white/60">Clone</span>
+            </div>
+          )}
         </div>
 
         <VoiceSearch 
@@ -232,7 +238,7 @@ export function InputStudio() {
       </div>
 
       {/* Generate Button */}
-      <Button className="w-full bg-[#63248d] hover:bg-[#7c2eb0] text-lg font-normal h-12 transition-colors duration-300" style={{ boxShadow: '0 4px 12px #00000030' }}>
+      <Button className="w-full bg-[#4c0562] hover:bg-[#63248D] text-lg font-normal h-12 transition-colors duration-300" style={{ boxShadow: '0 4px 12px #00000030' }}>
         Generate audio
       </Button>
     </div>

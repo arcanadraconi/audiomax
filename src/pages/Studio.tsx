@@ -5,6 +5,7 @@ import { InputStudio } from '../components/studio/InputStudio';
 import { AudioPlayer } from '../components/studio/AudioPlayer';
 import { VoiceCloning } from '../components/studio/VoiceCloning';
 import { VoiceLibrary } from '../components/studio/VoiceLibrary';
+import { Navbar } from '../components/layout/Navbar'
 
 export default function Studio() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -27,10 +28,15 @@ export default function Studio() {
 
   return (
     <div className="w-full top-0 text-white font-sans">
+      {/* Email Header */}
+     
+      <Navbar />
+    
+
       {/* Main Content */}
-      <div className="container mx-auto px-4">
+      <div className="container mx-auto px-4 mt-8">
         {/* Logo */}
-        <div className="mb-12 flex justify-center md:justify-start">
+        <div className="mb-12 mt-16 flex justify-center md:justify-start">
           <img
             src="/audiomax.png"
             alt="AudioMax Logo"

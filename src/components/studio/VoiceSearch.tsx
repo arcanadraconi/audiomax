@@ -56,13 +56,28 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/v2/voices', {
+      // First, make an OPTIONS request to check CORS
+      const preflightResponse = await fetch('https://api.play.ht/api/v2/voices', {
+        method: 'OPTIONS',
+        headers: {
+          'Accept': 'application/json',
+          'Access-Control-Request-Method': 'GET',
+          'Access-Control-Request-Headers': 'Authorization, X-User-ID'
+        }
+      });
+
+      if (!preflightResponse.ok) {
+        console.error('CORS preflight failed:', preflightResponse.status);
+      }
+
+      // Then make the actual request
+      const response = await fetch('https://api.play.ht/api/v2/voices', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.PLAYHT_SECRET_KEY}`,
-          'X-User-ID': import.meta.env.PLAYHT_USER_ID
+          'Authorization': `Bearer ${import.meta.env.VITE_PLAYHT_SECRET_KEY}`,
+          'X-User-ID': import.meta.env.VITE_PLAYHT_USER_ID
         }
       });
 
@@ -71,7 +86,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
         console.error('Voice API Error Response:', text);
         console.error('Response Status:', response.status);
         console.error('Response Headers:', Object.fromEntries(response.headers));
-        throw new Error('Failed to fetch voice library');
+        throw new Error(`Failed to fetch voice library: ${response.status}`);
       }
 
       const data = await response.json();
@@ -87,7 +102,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   };
 
   const fetchClonedVoices = async () => {
-    if (!import.meta.env.ENABLE_VOICE_CLONING) {
+    if (!import.meta.env.VITE_ENABLE_VOICE_CLONING) {
       setError('Voice cloning is not enabled');
       return;
     }

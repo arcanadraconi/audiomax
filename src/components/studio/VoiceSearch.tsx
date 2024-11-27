@@ -61,8 +61,8 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_PLAYHT_SECRET_KEY}`,
-          'X-User-ID': import.meta.env.VITE_PLAYHT_USER_ID
+          'Authorization': `Bearer ${import.meta.env.PLAYHT_SECRET_KEY}`,
+          'X-User-ID': import.meta.env.PLAYHT_USER_ID
         }
       });
 
@@ -87,7 +87,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   };
 
   const fetchClonedVoices = async () => {
-    if (!import.meta.env.VITE_ENABLE_VOICE_CLONING) {
+    if (!import.meta.env.ENABLE_VOICE_CLONING) {
       setError('Voice cloning is not enabled');
       return;
     }
@@ -99,7 +99,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   const searchVoices = (term: string) => {
     setSearchTerm(term);
     setShowDropdown(true);
-    
+
     if (term.length < 2) {
       setFilteredVoices(voices);
       return;
@@ -119,11 +119,11 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
           voice.loudness
         ].filter(Boolean);
 
-        return searchableFields.some(field => 
+        return searchableFields.some(field =>
           field?.toLowerCase().includes(term) ||
-          (term === 'podcast' && 
+          (term === 'podcast' &&
             (voice.style?.toLowerCase().includes('casual') ||
-             voice.style?.toLowerCase().includes('conversational')))
+              voice.style?.toLowerCase().includes('conversational')))
         );
       });
     });

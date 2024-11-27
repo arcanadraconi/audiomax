@@ -22,9 +22,9 @@ export function VoiceLibrary() {
     <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
       <h3 className="text-white/80 mb-4">Your favorite's voice library</h3>
       {voices.map((voice) => (
-        <Button 
-          key={voice.id} 
-          variant="ghost" 
+        <Button
+          key={voice.id}
+          variant="ghost"
           className="w-full justify-start text-white/60 text-md hover:bg-white/10 transition-colors duration-300 mb-2"
         >
           <div className="flex items-center w-full">

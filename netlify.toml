@@ -3,6 +3,21 @@
   publish = "dist"
   functions = "functions"
 
+[build.environment]
+  DATABASE_NAME = ""
+  DATABASE_URL = ""
+  SMTP_FROM_EMAIL = ""
+  SMTP_FROM_NAME = ""
+  SMTP_HOST = ""
+  SMTP_PASS = ""
+  VITE_FIREBASE_API_KEY = "AIzaSyCzTW_1xnJSihqWkH_toKP_tH702WpNlkA"
+  VITE_FIREBASE_AUTH_DOMAIN = "audiomax-40b0e.firebaseapp.com"
+  VITE_FIREBASE_PROJECT_ID = "audiomax-40b0e"
+  VITE_FIREBASE_STORAGE_BUCKET = "audiomax-40b0e.firebasestorage.app"
+  VITE_FIREBASE_MESSAGING_SENDER_ID = "408318389901"
+  VITE_FIREBASE_APP_ID = "1:408318389901:web:6f0820b135a52d79563cc4"
+  VITE_FIREBASE_MEASUREMENT_ID = "G-NZSC3F0QWL"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

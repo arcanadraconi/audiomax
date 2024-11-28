@@ -4,7 +4,7 @@ import { Button } from "../components/ui/button";
 import { InputStudio } from '../components/studio/InputStudio';
 import { AudioPlayer } from '../components/studio/AudioPlayer';
 import { VoiceCloning } from '../components/studio/VoiceCloning';
-import { VoiceLibrary } from '../components/studio/VoiceLibrary';
+import { VoiceLibrary } from '../components/studio/favorites';
 import { Navbar } from '../components/layout/Navbar'
 
 interface Voice {

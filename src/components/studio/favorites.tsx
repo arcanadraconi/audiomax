@@ -27,11 +27,11 @@ export function VoiceLibrary({ onVoiceSelect }: VoiceLibraryProps) {
 
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-      <h2 className="text-xl font-medium text-white/80 mb-4">My Voice Library</h2>
+      <h2 className="text-xl font-medium text-white/80 mb-4">My Favorite Voices</h2>
       
       {favoriteVoices.length === 0 ? (
         <div className="text-white/60 text-center py-4">
-          No favorite voices yet. Search and add voices to your library.
+          No favorite voices yet. Search and add voices to your favorite.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

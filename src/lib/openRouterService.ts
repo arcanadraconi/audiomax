@@ -16,31 +16,34 @@ interface GeneratedContent {
 
 export class OpenRouterService {
   private static readonly API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-  private static readonly MODEL = 'meta-llama/llama-3.2-90b-vision-instruct';
+  private static readonly MODEL = 'google/learnlm-1.5-pro-experimental:free';  // Using a faster model
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
   private static readonly TARGET_WORDS = OpenRouterService.TARGET_DURATION * OpenRouterService.WORDS_PER_MINUTE; // 2250 words
   private static readonly MIN_WORDS = 2000; // Minimum words needed for 13 minutes
-  private static readonly CHUNK_SIZE = 1800;
-  private static readonly MIN_CHUNKS = 5; // Minimum number of chunks required
+  private static readonly MIN_CHUNK_WORDS = 700; // Minimum words per chunk
+  private static readonly MAX_CHUNK_WORDS = 1000; // Maximum words per chunk
+  private static readonly TARGET_CHUNKS = 9; // Target number of chunks
+  private static readonly WORDS_PER_CHUNK = Math.floor(OpenRouterService.TARGET_WORDS / OpenRouterService.TARGET_CHUNKS); // ~321 words per chunk
 
   private static getApiKey(): string {
-    // For tests, use process.env; for runtime, use import.meta.env
-    return typeof process !== 'undefined' && process.env.VITE_OPENROUTER_API_KEY
-      ? process.env.VITE_OPENROUTER_API_KEY
-      : (window as any).ENV_VITE_OPENROUTER_API_KEY || '';
+    const key = import.meta.env.VITE_OPENROUTER_API_KEY;
+    if (!key) {
+      throw new Error('OpenRouter API key not found in environment variables');
+    }
+    return key;
   }
 
   private static async makeRequest(prompt: string, systemPrompt: string) {
-    const response = await fetch(this.API_URL, {
-      method: 'POST',
-      headers: {
+    try {
+      const headers = {
         'Authorization': `Bearer ${this.getApiKey()}`,
-        'HTTP-Referer': 'https://audiomax-40b0e.web.app/',
+        'HTTP-Referer': 'https://audiomax-40b0e.web.app',
         'X-Title': 'AudioMax',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+        'Content-Type': 'application/json'
+      };
+
+      const body = {
         model: this.MODEL,
         messages: [
           {
@@ -52,174 +55,130 @@ export class OpenRouterService {
             content: prompt,
           },
         ],
-        temperature: 0.7,
+        temperature: 0.3, // Lower temperature for faster, more focused responses
         max_tokens: 4000,
-      }),
-    });
+        stream: false,
+        frequency_penalty: 0.3, // Reduce repetition
+        presence_penalty: 0.3 // Encourage focused content
+      };
 
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
+      const response = await fetch(this.API_URL, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(body)
+      });
+
+      const responseText = await response.text();
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status} - ${responseText}`);
+      }
+
+      try {
+        const data = JSON.parse(responseText);
+        return data as OpenRouterResponse;
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        throw new Error(`Failed to parse OpenRouter API response: ${responseText}`);
+      }
+    } catch (error) {
+      console.error('OpenRouter API Request Error:', error);
+      if (error instanceof Error) {
+        throw new Error(`OpenRouter API error: ${error.message}`);
+      }
+      throw error;
     }
-
-    return response.json() as Promise<OpenRouterResponse>;
   }
 
   static async generateTranscript(text: string, audience: string): Promise<GeneratedContent> {
-    const systemPrompt = `You are an expert content creator who specializes in creating engaging ${audience} content.
-    Transform the given topic into a natural, conversational monologue that will take exactly ${this.TARGET_DURATION} minutes to deliver.
-    
-    Key Requirements:
-    - Generate EXACTLY ${this.TARGET_WORDS} words (this is critical for timing)
-    - Content MUST be substantial enough for a ${this.TARGET_DURATION}-minute talk
-    - Create at least ${this.MIN_CHUNKS} major sections or points
-    - Each section should be detailed and thorough
-    - Include real-world examples and practical applications
-    - Use natural transitions between sections
-    - Maintain consistent pacing throughout
-    
-    Content Structure:
-    1. Strong opening hook (1-2 minutes)
-    2. Clear introduction of the main topic (2-3 minutes)
-    3. 3-4 detailed main points with examples (8-9 minutes)
-    4. Practical applications or actionable steps (2-3 minutes)
-    5. Compelling conclusion (1-2 minutes)
-    
-    Writing Style:
-    - Write in a natural, conversational tone
-    - Use direct address ("you" and "we")
-    - Include rhetorical questions for engagement
-    - Create natural pauses through sentence structure
-    - NO stage directions or sound effects
-    - NO "[Narrator]" or similar markers
-    - Let emphasis come through word choice and sentence structure
-    
-    Remember:
-    - The content MUST be long enough for ${this.TARGET_DURATION} minutes
-    - Aim for EXACTLY ${this.TARGET_WORDS} words
-    - Each main point should be thoroughly explored
-    - Include specific examples and detailed explanations
-    - Create natural breaking points for chunking
-    
-    If the generated content is too short, expand each point with:
-    - More detailed examples
-    - Additional context
-    - Practical applications
-    - Real-world scenarios
-    - Deeper explanations
-    
-    The final content must be substantial enough to fill the full ${this.TARGET_DURATION} minutes when spoken at a natural pace.`;
+    const systemPrompt = `You are an expert content creator specializing in ${audience} content. Create a ${this.TARGET_DURATION}-minute monologue with EXACTLY 9 sections.
 
-    const response = await this.makeRequest(text, systemPrompt);
-    let generatedText = response.choices[0].message.content;
-    let wordCount = generatedText.split(/\s+/).filter(Boolean).length;
+CRITICAL LENGTH REQUIREMENTS:
+- Total content MUST be at least ${this.MIN_WORDS} words
+- Each section MUST be between ${this.MIN_CHUNK_WORDS} and ${this.MAX_CHUNK_WORDS} words
+- Each section MUST end with a complete sentence
+- Each section MUST flow naturally into the next
 
-    // If content is too short, request expansion
-    if (wordCount < this.MIN_WORDS) {
-      const expansionPrompt = `The current content is too short (${wordCount} words). Please expand it to exactly ${this.TARGET_WORDS} words by:
-      1. Adding more detailed examples
-      2. Providing deeper explanations
-      3. Including more practical applications
-      4. Adding relevant case studies
-      5. Expanding on each main point
+Format your response in exactly 9 sections. Mark the start of each section with [SECTION X] (these markers will be removed from the final output).
+
+Writing style:
+- Direct address ("you" and "we")
+- Rhetorical questions for engagement
+- Natural pauses through punctuation
+- Clear topic sentences
+- Strong concluding thoughts
+- NO stage directions or markers
+- NO meta-commentary
+
+Topic to cover: ${text}`;
+
+    try {
+      const response = await this.makeRequest(text, systemPrompt);
+      let generatedText = response.choices[0].message.content;
       
-      Current content:
-      ${generatedText}`;
-
-      const expandedResponse = await this.makeRequest(expansionPrompt, systemPrompt);
-      generatedText = expandedResponse.choices[0].message.content;
-      wordCount = generatedText.split(/\s+/).filter(Boolean).length;
-    }
-
-    // Split into chunks
-    const chunks = this.splitIntoChunks(generatedText);
-
-    return {
-      fullText: generatedText,
-      chunks,
-      estimatedDuration: Math.round((wordCount / this.WORDS_PER_MINUTE) * 1000) / 1000,
-    };
-  }
-
-  private static splitIntoChunks(text: string): string[] {
-    const chunks: string[] = [];
-    let currentChunk = '';
-    
-    // Split into sentences first
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-    
-    for (const sentence of sentences) {
-      const potentialChunk = currentChunk + (currentChunk ? ' ' : '') + sentence;
+      // Split into sections based on [SECTION X] markers
+      const sections = generatedText.split(/\[SECTION \d+[^\]]*\]/g).filter(Boolean);
       
-      if (potentialChunk.length > this.CHUNK_SIZE) {
-        if (currentChunk) {
-          chunks.push(currentChunk.trim());
-          currentChunk = sentence;
-        } else {
-          // If a single sentence is too long, split it at natural pauses
-          const naturalBreaks = sentence.match(/[^,;]+[,;]+/g) || [sentence];
-          let tempChunk = '';
+      // Ensure we have exactly 7 sections
+      if (sections.length !== this.TARGET_CHUNKS) {
+        console.log(`Warning: Got ${sections.length} sections instead of ${this.TARGET_CHUNKS}`);
+        // Split content at sentence boundaries to maintain at least 700 words per chunk
+        const sentences = generatedText.match(/[^.!?]+[.!?]+/g) || [];
+        const chunks: string[] = [];
+        let currentChunk = '';
+        let currentWords = 0;
+
+        for (const sentence of sentences) {
+          const sentenceWords = sentence.trim().split(/\s+/).length;
           
-          for (const segment of naturalBreaks) {
-            const potentialTempChunk = tempChunk + (tempChunk ? ' ' : '') + segment;
-            
-            if (potentialTempChunk.length > this.CHUNK_SIZE) {
-              if (tempChunk) {
-                chunks.push(tempChunk.trim());
-                tempChunk = segment;
-              } else {
-                // If even a segment is too long, split at words
-                const words = segment.split(' ');
-                let wordChunk = '';
-                
-                for (const word of words) {
-                  const potentialWordChunk = wordChunk + (wordChunk ? ' ' : '') + word;
-                  
-                  if (potentialWordChunk.length > this.CHUNK_SIZE) {
-                    if (wordChunk) {
-                      chunks.push(wordChunk.trim());
-                      wordChunk = word;
-                    } else {
-                      // Last resort: split the word itself
-                      chunks.push(word.substring(0, this.CHUNK_SIZE));
-                      wordChunk = word.substring(this.CHUNK_SIZE);
-                    }
-                  } else {
-                    wordChunk = potentialWordChunk;
-                  }
-                }
-                
-                if (wordChunk) {
-                  tempChunk = wordChunk;
-                }
-              }
-            } else {
-              tempChunk = potentialTempChunk;
-            }
-          }
-          
-          if (tempChunk) {
-            currentChunk = tempChunk;
+          if (currentWords + sentenceWords >= this.MIN_CHUNK_WORDS) {
+            currentChunk += sentence;
+            chunks.push(currentChunk.trim());
+            currentChunk = '';
+            currentWords = 0;
+          } else {
+            currentChunk += sentence;
+            currentWords += sentenceWords;
           }
         }
-      } else {
-        currentChunk = potentialChunk;
+
+        if (currentChunk) {
+          if (chunks.length > 0 && currentWords < this.MIN_CHUNK_WORDS) {
+            // Combine with last chunk if current is too small
+            chunks[chunks.length - 1] += ' ' + currentChunk;
+          } else {
+            chunks.push(currentChunk.trim());
+          }
+        }
+
+        return {
+          fullText: generatedText.replace(/\[SECTION \d+[^\]]*\]/g, ''),
+          chunks: chunks.map(chunk => chunk.replace(/\[SECTION \d+[^\]]*\]/g, '')),
+          estimatedDuration: Math.round((generatedText.split(/\s+/).length / this.WORDS_PER_MINUTE) * 1000) / 1000
+        };
       }
+
+      // Clean up sections and remove section headers
+      const chunks = sections.map(section => 
+        section.trim().replace(/\[SECTION \d+[^\]]*\]/g, '').trim()
+      );
+
+      // Calculate word count and duration
+      const wordCount = generatedText.split(/\s+/).filter(Boolean).length;
+      const estimatedDuration = Math.round((wordCount / this.WORDS_PER_MINUTE) * 1000) / 1000;
+
+      return {
+        fullText: generatedText.replace(/\[SECTION \d+[^\]]*\]/g, ''),
+        chunks,
+        estimatedDuration
+      };
+    } catch (error) {
+      console.error('Error generating transcript:', error);
+      throw error;
     }
-    
-    if (currentChunk) {
-      chunks.push(currentChunk.trim());
-    }
-    
-    return chunks;
   }
 
   static async validateChunk(chunk: string, audience: string): Promise<string> {
-    // First, ensure the chunk is not too large
-    if (chunk.length > this.CHUNK_SIZE) {
-      const chunks = this.splitIntoChunks(chunk);
-      return chunks[0];
-    }
-
     const systemPrompt = `You are an expert editor specializing in natural, conversational content for ${audience}.
     Review and optimize the following text for natural speech delivery.
     
@@ -229,19 +188,18 @@ export class OpenRouterService {
     - Keep the conversational flow
     - Remove any stage directions or narration markers
     - Preserve the direct, personal connection with the audience
-    - Keep the text under ${this.CHUNK_SIZE} characters
+    - Keep the text between ${this.MIN_CHUNK_WORDS} and ${this.MAX_CHUNK_WORDS} words
+    - Must end with a complete sentence
     
     Return only the optimized text without any explanations or markers.`;
 
-    const response = await this.makeRequest(chunk, systemPrompt);
-    const optimizedText = response.choices[0].message.content.trim();
-
-    // Double-check length and trim if necessary
-    if (optimizedText.length > this.CHUNK_SIZE) {
-      return this.splitIntoChunks(optimizedText)[0];
+    try {
+      const response = await this.makeRequest(chunk, systemPrompt);
+      return response.choices[0].message.content.trim().replace(/\[SECTION \d+[^\]]*\]/g, '');
+    } catch (error) {
+      console.error('Error validating chunk:', error);
+      throw error;
     }
-
-    return optimizedText;
   }
 
   static estimateChunkDuration(chunk: string): number {

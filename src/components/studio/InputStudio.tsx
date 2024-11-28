@@ -170,7 +170,6 @@ export function InputStudio() {
       setProcessedChunks(processedChunksWithInfo);
       setEstimatedDuration(result.estimatedDuration);
       setTotalWordCount(result.fullText.split(/\s+/).length);
-      setTextInput(result.fullText);
 
       // Save to MongoDB
       await DbService.saveTranscript(
@@ -180,8 +179,8 @@ export function InputStudio() {
       );
 
     } catch (err) {
-      setError('Failed to process content. Please try again.');
       console.error('Content processing error:', err);
+      setError('');
     } finally {
       setIsGenerating(false);
     }
@@ -248,7 +247,7 @@ export function InputStudio() {
         {estimatedDuration > 0 && (
           <div className="mt-4 p-3 bg-white/5 rounded-md">
             <div className="text-white/80 text-sm">Content Analysis:</div>
-            <div className="grid grid-cols-3 gap-4 mt-2">
+            <div className="grid grid-cols-2 gap-4 mt-2">
               <div className="text-white/60 flex items-center">
                 <FileText className="w-4 h-4 mr-2" />
                 Words: {totalWordCount}
@@ -257,9 +256,7 @@ export function InputStudio() {
                 <Clock className="w-4 h-4 mr-2" />
                 Duration: ~{Math.round(estimatedDuration)} minutes
               </div>
-              <div className="text-white/60">
-                Chunks: {processedChunks.length}
-              </div>
+              
             </div>
           </div>
         )}
@@ -346,15 +343,15 @@ export function InputStudio() {
         </Button>
       </div>
 
-      {/* Content Chunks */}
+      {/* Content Sections */}
       {processedChunks.length > 0 && (
         <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-          <h3 className="text-white/80 mb-4">Content Chunks ({processedChunks.length})</h3>
+          <h3 className="text-white/80 mb-4">Content Sections ({processedChunks.length})</h3>
           <div className="space-y-4">
             {processedChunks.map((chunk, index) => (
               <div key={index} className="p-3 bg-white/10 rounded-md">
                 <div className="flex justify-between items-center text-white/60 text-sm mb-2">
-                  <div>Chunk {index + 1}</div>
+                  <div>Section {index + 1}</div>
                   <div className="flex items-center gap-4">
                     <span>{chunk.wordCount} words</span>
                     <span>~{Math.round(chunk.duration)} min</span>

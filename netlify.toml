@@ -21,6 +21,13 @@
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
+# Add this redirect to ensure functions are not redirected to index.html
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+
+# Existing redirect for SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"

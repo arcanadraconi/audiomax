@@ -1,3 +1,5 @@
+// functions/src/fetchVoices.js
+
 const fetch = require('node-fetch');
 
 exports.handler = async (event, context) => {
@@ -7,8 +9,8 @@ exports.handler = async (event, context) => {
       headers: {
         'Accept': 'application/json',
         'Authorization': `Bearer ${process.env.PLAYHT_SECRET_KEY}`,
-        'X-User-ID': process.env.PLAYHT_USER_ID
-      }
+        'X-User-ID': process.env.PLAYHT_USER_ID,
+      },
     });
 
     if (!response.ok) {
@@ -16,20 +18,20 @@ exports.handler = async (event, context) => {
       console.error('Voice API Error Response:', text);
       return {
         statusCode: response.status,
-        body: text
+        body: text,
       };
     }
 
     const data = await response.json();
     return {
       statusCode: 200,
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
     };
   } catch (err) {
     console.error('Voice library fetch error:', err);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Failed to fetch voices' })
+      body: 'Failed to fetch voices',
     };
   }
 };

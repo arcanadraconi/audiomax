@@ -17,17 +17,19 @@
   VITE_FIREBASE_MESSAGING_SENDER_ID = "408318389901"
   VITE_FIREBASE_APP_ID = "1:408318389901:web:6f0820b135a52d79563cc4"
   VITE_FIREBASE_MEASUREMENT_ID = "G-NZSC3F0QWL"
+  VITE_PLAYHT_SECRET_KEY = ""
+  VITE_PLAYHT_USER_ID = ""
 
 [[plugins]]
   package = "@netlify/plugin-functions-install-core"
 
-# Add this redirect to ensure functions are not redirected to index.html
 [[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
+  from = "/api/v2/*"
+  to = "https://api.play.ht/api/v2/:splat"
   status = 200
+  force = true
+  headers = {Authorization = "Bearer ${VITE_PLAYHT_SECRET_KEY}", X-User-ID = "${VITE_PLAYHT_USER_ID}"}
 
-# Existing redirect for SPA routing
 [[redirects]]
   from = "/*"
   to = "/index.html"

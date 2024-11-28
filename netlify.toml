@@ -18,6 +18,9 @@
   VITE_FIREBASE_APP_ID = "1:408318389901:web:6f0820b135a52d79563cc4"
   VITE_FIREBASE_MEASUREMENT_ID = "G-NZSC3F0QWL"
 
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

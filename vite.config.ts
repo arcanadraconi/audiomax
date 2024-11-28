@@ -29,17 +29,20 @@ export default defineConfig(({ mode }) => {
           target: 'https://api.play.ht',
           changeOrigin: true,
           secure: false,
-          rewrite: (path) => path.replace(/^\/api\/v2/, '/api/v2'),
           configure: (proxy, options) => {
             proxy.on('proxyReq', (proxyReq, req, res) => {
               proxyReq.setHeader('Authorization', `Bearer ${env.VITE_PLAYHT_SECRET_KEY}`);
               proxyReq.setHeader('X-User-ID', env.VITE_PLAYHT_USER_ID);
               proxyReq.setHeader('Origin', 'https://api.play.ht');
-              proxyReq.setHeader('Access-Control-Allow-Origin', '*');
-              proxyReq.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-              proxyReq.setHeader('Access-Control-Allow-Headers', 'Authorization, X-User-ID, Content-Type');
+              proxyReq.setHeader('Accept', 'application/json');
+              proxyReq.setHeader('Content-Type', 'application/json');
             });
           }
+        },
+        '/.netlify/functions/': {
+          target: 'http://localhost:8888',
+          changeOrigin: true,
+          secure: false,
         }
       }
     },

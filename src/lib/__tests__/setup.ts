@@ -134,6 +134,11 @@ class MockResponse implements Response {
     return JSON.stringify(json);
   }
 
+  async bytes(): Promise<Uint8Array> {
+    const text = await this.text();
+    return new TextEncoder().encode(text);
+  }
+
   clone(): Response {
     return new MockResponse();
   }

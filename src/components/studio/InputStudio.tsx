@@ -1,4 +1,3 @@
-// Previous imports remain the same...
 import { useState, useRef } from 'react';
 import { Button } from "../ui/button";
 import { Upload, ChevronDown, ChevronUp, X, Clock, FileText, Star, Volume2 } from 'lucide-react';
@@ -8,7 +7,6 @@ import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
 import { playhtClient, Voice as PlayHTVoice } from '../../lib/playht';
 
-// Previous constants remain the same...
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
@@ -40,12 +38,6 @@ const audiences = [
   }
 ];
 
-interface ChunkInfo {
-  text: string;
-  wordCount: number;
-  duration: number;
-}
-
 export function InputStudio() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [textInput, setTextInput] = useState('');
@@ -55,12 +47,9 @@ export function InputStudio() {
   const [isLibraryMode, setIsLibraryMode] = useState(true);
   const [selectedVoice, setSelectedVoice] = useState<PlayHTVoice | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [processedChunks, setProcessedChunks] = useState<ChunkInfo[]>([]);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
   const [generationPhase, setGenerationPhase] = useState<string>('');
-  const [currentChunk, setCurrentChunk] = useState<number>(0);
-  const [totalChunks, setTotalChunks] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use the audio processing hook
@@ -75,12 +64,10 @@ export function InputStudio() {
   const isVoiceCloningEnabled = env.features.voiceCloning;
 
   const validateFile = (file: File): string | null => {
-    // Check file size
     if (file.size > MAX_FILE_SIZE) {
       return 'File size exceeds 5MB limit';
     }
 
-    // Check file type
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
     if (!ALLOWED_FILE_TYPES.includes(fileExtension)) {
       return 'Invalid file type. Allowed types: PDF, TXT, DOCX, DOC, MD';
@@ -161,17 +148,7 @@ export function InputStudio() {
       );
       console.log('Transcript generated:', result);
 
-      // Process chunks with word count and duration
-      const processedChunksWithInfo = result.chunks.map(chunk => {
-        const wordCount = chunk.split(/\s+/).length;
-        return {
-          text: chunk,
-          wordCount,
-          duration: wordCount / 150 // 150 words per minute
-        };
-      });
-
-      setProcessedChunks(processedChunksWithInfo);
+      // Update word count and duration
       setEstimatedDuration(result.estimatedDuration);
       setTotalWordCount(result.fullText.split(/\s+/).length);
 
@@ -218,8 +195,6 @@ export function InputStudio() {
     } finally {
       setIsGenerating(false);
       setGenerationPhase('');
-      setCurrentChunk(0);
-      setTotalChunks(0);
     }
   };
 
@@ -381,42 +356,21 @@ export function InputStudio() {
         </Button>
 
         {/* Audio Processing Progress */}
-        {audioProgress && (
+        {(isGenerating || audioProgress) && (
           <div className="mt-4 space-y-2">
             <div className="flex justify-between text-sm text-white/60">
-              <span>{audioProgress.phase}</span>
-              <span>{Math.round(audioProgress.progress)}%</span>
+              <span>{isGenerating ? generationPhase : audioProgress?.phase}</span>
+              <span>{audioProgress ? `${Math.round(audioProgress.progress)}%` : ''}</span>
             </div>
             <div className="h-1 bg-white/10 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${audioProgress.progress}%` }}
+                style={{ width: `${audioProgress ? audioProgress.progress : 0}%` }}
               />
             </div>
           </div>
         )}
       </div>
-
-      {/* Content Sections */}
-      {processedChunks.length > 0 && (
-        <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
-          <h3 className="text-white/80 mb-4">Content Sections ({processedChunks.length})</h3>
-          <div className="space-y-4">
-            {processedChunks.map((chunk, index) => (
-              <div key={index} className="p-3 bg-white/10 rounded-md">
-                <div className="flex justify-between items-center text-white/60 text-sm mb-2">
-                  <div>Section {index + 1}</div>
-                  <div className="flex items-center gap-4">
-                    <span>{chunk.wordCount} words</span>
-                    <span>~{Math.round(chunk.duration)} min</span>
-                  </div>
-                </div>
-                <div className="text-white/80">{chunk.text}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -1,201 +1,171 @@
-import * as Comlink from 'comlink';
-import PQueue from 'p-queue';
-import { ProcessedChunk } from './transcriptProcessor';
-import type { SpeechGenerationOptions, SpeechGenerationResponse } from '../playht';
-
-export interface AudioChunk {
-  index: number;
-  url: string;
-  duration: number;
-}
+import { splitTextIntoChunks, combineAudioUrls, calculateOverallProgress } from '../audioUtils';
 
 interface GenerationProgress {
-  completedChunks: number;
+  chunkIndex: number;
   totalChunks: number;
-  currentChunk?: AudioChunk;
+  status: 'starting' | 'generating' | 'complete';
+  progress: number;
+  overallProgress: number;
 }
 
-interface GenerationOptions {
-  voice: string;
-  quality?: 'draft' | 'low' | 'medium' | 'high' | 'premium';
-  speed?: number;
-  onProgress?: (progress: GenerationProgress) => void;
+interface GenerationResult {
+  audioUrls: string[];
+  generationIds: string[];
+  combinedAudioBlob?: Blob;
 }
-
-type GenerateSpeechFn = (text: string, options: SpeechGenerationOptions) => Promise<SpeechGenerationResponse>;
 
 export class ParallelAudioGenerator {
-  private queue: PQueue;
-  private workers: Worker[];
-  private maxConcurrent: number;
+  private workers: Worker[] = [];
+  private maxWorkers = 3; // Limit concurrent generations
+  private results: Map<number, string> = new Map();
+  private chunkProgresses: Map<number, number> = new Map();
+  private errors: Map<number, string> = new Map();
+  private progressCallback: (progress: GenerationProgress) => void;
+  private completionCallback: (result: GenerationResult) => void;
+  private errorCallback: (error: string) => void;
 
-  constructor(maxConcurrent = 3) {
-    console.log('Initializing ParallelAudioGenerator with', maxConcurrent, 'workers');
-    this.maxConcurrent = maxConcurrent;
-    this.queue = new PQueue({ concurrency: maxConcurrent });
-    this.workers = [];
-    this.initializeWorkers();
+  constructor(
+    onProgress: (progress: GenerationProgress) => void,
+    onComplete: (result: GenerationResult) => void,
+    onError: (error: string) => void
+  ) {
+    this.progressCallback = onProgress;
+    this.completionCallback = onComplete;
+    this.errorCallback = onError;
   }
 
-  private initializeWorkers() {
-    console.log('Initializing Web Workers');
-    for (let i = 0; i < this.maxConcurrent; i++) {
-      try {
-        const worker = new Worker(
-          new URL('../workers/audioGenerationWorker.ts', import.meta.url),
-          { type: 'module' }
-        );
-        console.log('Worker', i + 1, 'initialized');
-        this.workers.push(worker);
-      } catch (error) {
-        console.error('Error initializing worker:', error);
-        throw error;
-      }
-    }
-  }
-
-  private async generateChunk(
-    chunk: ProcessedChunk,
-    options: GenerationOptions,
-    workerIndex: number
-  ): Promise<AudioChunk> {
-    console.log(`Generating audio for chunk ${chunk.index} using worker ${workerIndex}`);
-    console.log('Chunk text preview:', chunk.text.substring(0, 50) + '...');
-    
-    const worker = this.workers[workerIndex];
-    const generateAudio = Comlink.wrap<GenerateSpeechFn>(worker);
-
+  async generateAudio(text: string, options: {
+    voice: string;
+    quality?: string;
+    speed?: number;
+  }): Promise<void> {
     try {
-      console.log('Calling worker with options:', {
-        voice: options.voice,
-        quality: options.quality,
-        speed: options.speed
-      });
+      // Split text into chunks
+      const chunks = splitTextIntoChunks(text);
+      const totalChunks = chunks.length;
+      console.log(`Splitting text into ${totalChunks} chunks`);
 
-      const result = await generateAudio(chunk.text, {
-        voice: options.voice,
-        quality: options.quality || 'premium',
-        speed: options.speed,
-      });
+      // Create a pool of workers
+      const workerPool = Array.from({ length: Math.min(this.maxWorkers, totalChunks) }, 
+        () => new Worker(new URL('../workers/audioGenerationWorker.ts', import.meta.url), { type: 'module' }));
 
-      console.log(`Chunk ${chunk.index} generation result:`, {
-        hasUrl: !!result.output.audio_url,
-        status: result.status
-      });
+      // Process chunks with available workers
+      let currentChunkIndex = 0;
 
-      return {
-        index: chunk.index,
-        url: result.output.audio_url,
-        duration: 0, // Duration will be set when audio is loaded
-      };
-    } catch (error) {
-      console.error(`Error generating audio for chunk ${chunk.index}:`, error);
-      throw error;
-    }
-  }
-
-  public async generateParallel(
-    chunks: ProcessedChunk[],
-    options: GenerationOptions
-  ): Promise<AudioChunk[]> {
-    console.log('Starting parallel audio generation for', chunks.length, 'chunks');
-    const results: AudioChunk[] = new Array(chunks.length);
-    let completedChunks = 0;
-
-    const tasks = chunks.map((chunk, index) => {
-      return async () => {
-        console.log(`Starting task for chunk ${chunk.index}`);
-        const workerIndex = index % this.maxConcurrent;
-        const result = await this.generateChunk(chunk, options, workerIndex);
-        results[chunk.index] = result;
-        completedChunks++;
-
-        if (options.onProgress) {
-          options.onProgress({
-            completedChunks,
-            totalChunks: chunks.length,
-            currentChunk: result,
-          });
+      const processNextChunk = (worker: Worker) => {
+        if (currentChunkIndex >= chunks.length) {
+          worker.terminate();
+          return;
         }
 
-        console.log(`Completed chunk ${chunk.index}, ${completedChunks}/${chunks.length} done`);
-        return result;
-      };
-    });
+        const chunkIndex = currentChunkIndex++;
+        const chunk = chunks[chunkIndex];
 
-    try {
-      await Promise.all(tasks.map(task => this.queue.add(task)));
-      console.log('All chunks completed successfully');
-    } catch (error) {
-      console.error('Error in parallel generation:', error);
-      throw error;
-    }
-
-    // Clean up workers
-    this.workers.forEach(worker => worker.terminate());
-    this.workers = [];
-    this.initializeWorkers();
-
-    return results;
-  }
-
-  public async generateStreaming(
-    chunks: ProcessedChunk[],
-    options: GenerationOptions
-  ): Promise<ReadableStream<AudioChunk>> {
-    console.log('Starting streaming audio generation');
-    const self = this;
-    const transformer = new TransformStream<ProcessedChunk, AudioChunk>({
-      async transform(chunk, controller) {
-        try {
-          const workerIndex = chunk.index % self.maxConcurrent;
-          const result = await self.generateChunk(chunk, options, workerIndex);
-          controller.enqueue(result);
-        } catch (error) {
-          console.error('Error in stream transform:', error);
-          controller.error(error);
-        }
-      }
-    });
-
-    const processChunks = async () => {
-      const writer = transformer.writable.getWriter();
-      let completedChunks = 0;
-
-      try {
-        const tasks = chunks.map(chunk => async () => {
-          await writer.write(chunk);
-          completedChunks++;
-
-          if (options.onProgress) {
-            const currentChunk = await this.generateChunk(chunk, options, chunk.index % this.maxConcurrent);
-            options.onProgress({
-              completedChunks,
-              totalChunks: chunks.length,
-              currentChunk,
-            });
-          }
+        worker.postMessage({
+          text: chunk,
+          voice: options.voice,
+          quality: options.quality || 'premium',
+          speed: options.speed || 1,
+          chunkIndex,
+          totalChunks
         });
+      };
 
-        await Promise.all(tasks.map(task => this.queue.add(task)));
-      } finally {
-        await writer.close();
-      }
-    };
+      // Handle worker messages
+      workerPool.forEach(worker => {
+        worker.onmessage = async (e) => {
+          const message = e.data;
 
-    // Start processing in the background
-    processChunks().catch(error => {
-      console.error('Error in stream processing:', error);
-      transformer.writable.abort(error);
-    });
+          switch (message.type) {
+            case 'progress':
+              this.chunkProgresses.set(message.chunkIndex, message.progress);
+              const overallProgress = calculateOverallProgress(this.chunkProgresses, totalChunks);
+              
+              this.progressCallback({
+                chunkIndex: message.chunkIndex,
+                totalChunks,
+                status: message.status,
+                progress: message.progress,
+                overallProgress
+              });
+              break;
 
-    return transformer.readable;
+            case 'complete':
+              this.results.set(message.chunkIndex, message.audioUrl);
+              this.chunkProgresses.set(message.chunkIndex, 100);
+              
+              // Check if all chunks are complete
+              if (this.results.size === totalChunks) {
+                await this.handleCompletion(totalChunks);
+              } else {
+                // Process next chunk with this worker
+                processNextChunk(worker);
+              }
+              break;
+
+            case 'error':
+              this.errors.set(message.chunkIndex, message.error);
+              this.errorCallback(`Error processing chunk ${message.chunkIndex + 1}: ${message.error}`);
+              processNextChunk(worker); // Try next chunk despite error
+              break;
+          }
+        };
+
+        // Start initial chunk processing
+        processNextChunk(worker);
+      });
+
+    } catch (error) {
+      this.errorCallback(error instanceof Error ? error.message : 'Unknown error during audio generation');
+    }
   }
 
-  public destroy() {
-    console.log('Destroying ParallelAudioGenerator');
+  private async handleCompletion(totalChunks: number) {
+    try {
+      // Combine results in correct order
+      const audioUrls: string[] = [];
+      const generationIds: string[] = [];
+
+      for (let i = 0; i < totalChunks; i++) {
+        const url = this.results.get(i);
+        if (url) {
+          audioUrls.push(url);
+          // Extract generation ID from URL
+          const match = url.match(/pigeon\/([^_]+)/);
+          if (match) {
+            generationIds.push(match[1]);
+          }
+        }
+      }
+
+      // Combine audio files
+      console.log('Combining audio files...');
+      const combinedAudioBlob = await combineAudioUrls(audioUrls);
+      console.log('Audio files combined successfully');
+
+      // Clean up
+      this.workers.forEach(worker => worker.terminate());
+      this.workers = [];
+      this.results.clear();
+      this.chunkProgresses.clear();
+      this.errors.clear();
+
+      // Return combined results
+      this.completionCallback({
+        audioUrls,
+        generationIds,
+        combinedAudioBlob
+      });
+    } catch (error) {
+      this.errorCallback('Error combining audio files: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  }
+
+  cancel() {
     this.workers.forEach(worker => worker.terminate());
     this.workers = [];
-    this.queue.clear();
+    this.results.clear();
+    this.chunkProgresses.clear();
+    this.errors.clear();
   }
 }

@@ -1,63 +1,85 @@
-import * as Comlink from 'comlink';
-import { playhtClient } from '../playht';
-import type { SpeechGenerationOptions, SpeechGenerationResponse } from '../playht';
+import axios, { AxiosProgressEvent } from 'axios';
 
-// Create a wrapper function that matches the expected type
-async function generateSpeech(text: string, options: SpeechGenerationOptions): Promise<SpeechGenerationResponse> {
-  try {
-    console.log('Worker: Starting speech generation');
-    console.log('Worker: Text length:', text.length);
-    console.log('Worker: Text preview:', text.substring(0, 100));
-    console.log('Worker: Options:', JSON.stringify(options, null, 2));
-
-    // Check PlayHT client initialization
-    if (!playhtClient) {
-      throw new Error('PlayHT client not initialized');
-    }
-
-    // Log PlayHT credentials (without exposing sensitive data)
-    console.log('Worker: PlayHT client initialized:', {
-      hasApiKey: !!playhtClient['apiKey'],
-      hasUserId: !!playhtClient['userId']
-    });
-
-    // Validate inputs
-    if (!text || text.trim().length === 0) {
-      throw new Error('Text is required');
-    }
-    if (!options.voice) {
-      throw new Error('Voice ID is required');
-    }
-
-    // Call PlayHT API
-    console.log('Worker: Calling PlayHT API...');
-    const result = await playhtClient.generateSpeech(text, {
-      voice: options.voice,
-      quality: options.quality || 'premium',
-      output_format: 'mp3',
-      speed: options.speed || 1.0,
-    });
-
-    // Validate response
-    if (!result.output?.audio_url) {
-      console.error('Worker: Invalid response from PlayHT:', result);
-      throw new Error('No audio URL in response');
-    }
-
-    console.log('Worker: Generation successful');
-    console.log('Worker: Audio URL:', result.output.audio_url);
-    
-    return result;
-  } catch (error) {
-    console.error('Worker: Speech generation error:', error);
-    // Ensure error is properly serialized for transfer back to main thread
-    if (error instanceof Error) {
-      throw new Error(`Speech generation failed: ${error.message}`);
-    }
-    throw new Error('Speech generation failed with unknown error');
-  }
+interface GenerationTask {
+  text: string;
+  voice: string;
+  quality: string;
+  speed: number;
+  chunkIndex: number;
+  totalChunks: number;
 }
 
-// Expose the wrapper function to the main thread
-console.log('Worker: Initializing and exposing generateSpeech function');
-Comlink.expose(generateSpeech);
+interface ProgressMessage {
+  type: 'progress';
+  chunkIndex: number;
+  totalChunks: number;
+  status: 'starting' | 'generating';
+  progress: number;
+}
+
+interface CompleteMessage {
+  type: 'complete';
+  chunkIndex: number;
+  audioUrl: string;
+  generationId: string;
+}
+
+interface ErrorMessage {
+  type: 'error';
+  chunkIndex: number;
+  error: string;
+}
+
+type WorkerMessage = ProgressMessage | CompleteMessage | ErrorMessage;
+
+self.addEventListener('message', async (e: MessageEvent<GenerationTask>) => {
+  const { text, voice, quality, speed, chunkIndex, totalChunks } = e.data;
+  
+  try {
+    // Report progress start
+    self.postMessage({
+      type: 'progress',
+      chunkIndex,
+      totalChunks,
+      status: 'starting',
+      progress: 0
+    } as WorkerMessage);
+
+    const response = await axios.post('http://localhost:3001/api/tts', {
+      text,
+      voice,
+      quality,
+      speed
+    }, {
+      onUploadProgress: (progressEvent: AxiosProgressEvent) => {
+        const progress = progressEvent.total 
+          ? (progressEvent.loaded / progressEvent.total) * 100
+          : 0;
+        
+        self.postMessage({
+          type: 'progress',
+          chunkIndex,
+          totalChunks,
+          status: 'generating',
+          progress
+        } as WorkerMessage);
+      }
+    });
+
+    // Report success
+    self.postMessage({
+      type: 'complete',
+      chunkIndex,
+      audioUrl: response.data.audioUrl,
+      generationId: response.data.generationId
+    } as WorkerMessage);
+
+  } catch (error) {
+    // Report error
+    self.postMessage({
+      type: 'error',
+      chunkIndex,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    } as WorkerMessage);
+  }
+});

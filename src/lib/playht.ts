@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-type VoiceEngine = 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'PlayHT1.0' | 'Standard';
+type VoiceEngine = 'Play3.0-mini' | 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'PlayHT1.0' | 'Standard';
 
 interface Voice {
   id: string;

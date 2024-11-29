@@ -66,14 +66,8 @@ app.get('/api/voices', async (req, res) => {
       voiceEngine: voice.voiceEngine || 'PlayHT2.0'
     }));
 
-    // Filter for PlayHT2.0 voices
-    const compatibleVoices = voices.filter(voice => 
-      voice.voiceEngine === 'PlayHT2.0' || 
-      voice.voiceEngine === 'PlayHT2.0-turbo'
-    );
-
-    console.log(`Mapped ${voices.length} total voices, ${compatibleVoices.length} are PlayHT2.0 compatible`);
-    res.json({ voices: compatibleVoices });
+    console.log(`Mapped ${voices.length} total voices`);
+    res.json({ voices }); // Return all voices without filtering
   } catch (error) {
     console.error('Error fetching voices:', error);
     res.status(500).json({ error: error.message });

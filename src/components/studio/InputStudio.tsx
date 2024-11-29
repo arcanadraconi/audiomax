@@ -6,9 +6,9 @@ import { VoiceSearch } from './VoiceSearch';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
-import { playhtClient } from '../../lib/playht';
+import { playhtClient, Voice as PlayHTVoice } from '../../lib/playht';
 
-// Previous interfaces and constants remain the same...
+// Previous constants remain the same...
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
@@ -40,23 +40,6 @@ const audiences = [
   }
 ];
 
-interface Voice {
-  id: string;
-  name: string;
-  sample: string;
-  accent: string;
-  age: string;
-  gender: string;
-  language: string;
-  language_code: string;
-  loudness: string;
-  style: string;
-  tempo: string;
-  texture: string;
-  is_cloned: boolean;
-  voice_engine: string;
-}
-
 interface ChunkInfo {
   text: string;
   wordCount: number;
@@ -70,12 +53,14 @@ export function InputStudio() {
   const [isAudienceDropdownOpen, setIsAudienceDropdownOpen] = useState(false);
   const [selectedAudience, setSelectedAudience] = useState<typeof audiences[0] | null>(null);
   const [isLibraryMode, setIsLibraryMode] = useState(true);
-  const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
+  const [selectedVoice, setSelectedVoice] = useState<PlayHTVoice | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [processedChunks, setProcessedChunks] = useState<ChunkInfo[]>([]);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
   const [generationPhase, setGenerationPhase] = useState<string>('');
+  const [currentChunk, setCurrentChunk] = useState<number>(0);
+  const [totalChunks, setTotalChunks] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use the audio processing hook
@@ -139,7 +124,7 @@ export function InputStudio() {
     }
   };
 
-  const handleVoiceSelect = (voice: Voice) => {
+  const handleVoiceSelect = (voice: PlayHTVoice) => {
     console.log('Selected voice:', voice);
     setSelectedVoice(voice);
   };
@@ -199,22 +184,31 @@ export function InputStudio() {
       const audioResponse = await playhtClient.generateSpeech(result.fullText, {
         voice: selectedVoice.id,
         quality: 'premium',
-        speed: 1.0,
+        speed: 1.0
       });
 
       console.log('Audio generated:', audioResponse);
 
-      // Create URL for the audio
-      const audioUrl = audioResponse.audioUrl;
-      console.log('Audio URL:', audioUrl);
-
-      // Notify parent component about the generated audio
-      window.dispatchEvent(new CustomEvent('audioGenerated', {
-        detail: {
-          url: audioUrl,
-          title: selectedFile ? selectedFile.name : 'Generated Audio'
-        }
-      }));
+      // Handle multiple audio URLs if text was chunked
+      if (audioResponse.audioUrls) {
+        // Notify parent component about each audio chunk
+        audioResponse.audioUrls.forEach((url, index) => {
+          window.dispatchEvent(new CustomEvent('audioGenerated', {
+            detail: {
+              url,
+              title: `${selectedFile ? selectedFile.name : 'Generated Audio'} (Part ${index + 1})`
+            }
+          }));
+        });
+      } else {
+        // Single audio URL
+        window.dispatchEvent(new CustomEvent('audioGenerated', {
+          detail: {
+            url: audioResponse.audioUrl,
+            title: selectedFile ? selectedFile.name : 'Generated Audio'
+          }
+        }));
+      }
 
     } catch (err) {
       console.error('Content processing error:', err);
@@ -224,6 +218,8 @@ export function InputStudio() {
     } finally {
       setIsGenerating(false);
       setGenerationPhase('');
+      setCurrentChunk(0);
+      setTotalChunks(0);
     }
   };
 

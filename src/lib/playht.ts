@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-type VoiceEngine = 'Play3.0-mini' | 'PlayHT2.0-turbo' | 'PlayHT2.0' | 'PlayHT1.0' | 'Standard';
+type VoiceEngine = 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'PlayHT1.0' | 'Standard';
 
 interface Voice {
   id: string;
@@ -16,134 +16,51 @@ interface Voice {
   tempo: string;
   texture: string;
   is_cloned: boolean;
-  voice_engine: VoiceEngine;
+  voiceEngine: VoiceEngine;
 }
 
 interface SpeechGenerationOptions {
   voice: string;
-  quality?: 'draft' | 'low' | 'medium' | 'high' | 'premium';
+  quality?: 'draft' | 'standard' | 'premium';
   output_format?: 'mp3' | 'wav';
   speed?: number;
-  sample_rate?: number;
-  seed?: number;
   temperature?: number;
+  request_id?: string;
 }
 
 interface SpeechGenerationResponse {
   status: string;
-  transcriptionId: string;
-  contentLength: number;
-  wordCount: number;
   audioUrl: string;
+  audioUrls?: string[];
+  generationId?: string;
+  generationIds?: string[];
+  chunks?: number;
 }
 
 interface TestResponse {
   status: string;
-  transcriptionId: string;
   audioUrl: string;
 }
 
 class PlayHTClient {
-  private apiKey: string;
-  private userId: string;
-  private baseUrl = 'https://play.ht/api/v1';
+  private baseUrl: string;
 
   constructor() {
-    const rawApiKey = import.meta.env.VITE_PLAYHT_SECRET_KEY || '';
-    this.apiKey = rawApiKey.startsWith('Bearer ') ? rawApiKey : `Bearer ${rawApiKey}`;
-    this.userId = import.meta.env.VITE_PLAYHT_USER_ID || '';
-
-    if (!this.apiKey || !this.userId) {
-      throw new Error('PlayHT credentials not found in environment variables');
-    }
-
-    console.log('PlayHT client initialized with:', {
-      apiKey: `${this.apiKey.substring(0, 10)}...`,
-      userId: `${this.userId.substring(0, 4)}...`,
-      baseUrl: this.baseUrl
-    });
-  }
-
-  private getHeaders() {
-    return {
-      'Authorization': this.apiKey,
-      'X-User-ID': this.userId,
-      'Content-Type': 'application/json'
-    };
-  }
-
-  private async makeRequest<T>(method: string, url: string, data?: any): Promise<T> {
-    try {
-      console.log(`Making ${method} request to ${url}`);
-      if (data) {
-        console.log('Request data:', JSON.stringify(data, null, 2));
-      }
-
-      console.log('Request headers:', {
-        ...this.getHeaders(),
-        Authorization: `${this.getHeaders().Authorization.substring(0, 15)}...`
-      });
-
-      const response = await axios({
-        method,
-        url: `${this.baseUrl}${url}`,
-        headers: this.getHeaders(),
-        data
-      });
-
-      console.log('Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data
-      });
-
-      return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        console.error('API Error:', {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data
-        });
-        throw new Error(`API Error: ${error.response?.data?.error || error.message}`);
-      }
-      throw error;
-    }
+    // Use environment variable for server URL, fallback to localhost in development
+    this.baseUrl = 'http://localhost:3001/api';
+    console.log('PlayHT client initialized with baseUrl:', this.baseUrl);
   }
 
   async getVoices(): Promise<Voice[]> {
     try {
-      console.log('Fetching voices from PlayHT');
-      const response = await axios({
-        method: 'GET',
-        url: `${this.baseUrl}/getVoices`,
-        headers: this.getHeaders()
-      });
+      console.log('Fetching voices from server');
+      const response = await axios.get(`${this.baseUrl}/voices`);
 
-      // Log the raw response to see its structure
       console.log('Raw voices response:', response.data);
-
-      // Extract voices array from response
       const voices = response.data?.voices || [];
-      console.log(`Fetched ${voices.length} voices`);
-
-      // Map the response to our Voice interface with proper ID handling
-      return voices.map((voice: any) => ({
-        id: voice.voice_id || voice.id || `${voice.name}-${voice.language}`,
-        name: voice.name,
-        sample: voice.sample,
-        accent: voice.accent,
-        age: voice.age,
-        gender: voice.gender,
-        language: voice.language,
-        language_code: voice.language_code,
-        loudness: voice.loudness,
-        style: voice.style,
-        tempo: voice.tempo,
-        texture: voice.texture,
-        is_cloned: voice.is_cloned || false,
-        voice_engine: voice.voice_engine
-      }));
+      
+      // Sort voices by name for better organization
+      return voices.sort((a: Voice, b: Voice) => a.name.localeCompare(b.name));
     } catch (error) {
       console.error('Error fetching voices:', error);
       throw error;
@@ -156,62 +73,48 @@ class PlayHTClient {
       console.log('Text:', text);
       console.log('Options:', options);
 
-      // Step 1: Convert text to speech
-      const convertResponse = await this.makeRequest<any>('POST', '/convert', {
-        content: [text],
+      const response = await axios.post(`${this.baseUrl}/tts`, {
+        text,
         voice: options.voice,
-        title: 'Generated Audio',
-        globalSpeed: options.speed || "1",
-        trimSilence: true
+        quality: options.quality || 'premium',
+        speed: options.speed || 1
+      }, {
+        timeout: 300000 // 5 minutes timeout for long texts
       });
 
-      console.log('Convert response:', convertResponse);
-      const { transcriptionId } = convertResponse;
+      console.log('Generation response:', response.data);
 
-      if (!transcriptionId) {
-        throw new Error('No transcriptionId received from conversion');
+      // Handle both single and multiple audio URLs
+      if (response.data.audioUrls) {
+        // Multiple chunks response
+        return {
+          status: 'success',
+          audioUrl: response.data.audioUrls[0], // First URL for backward compatibility
+          audioUrls: response.data.audioUrls,
+          generationIds: response.data.generationIds,
+          chunks: response.data.chunks
+        };
+      } else if (response.data.audioUrl) {
+        // Single chunk response
+        return {
+          status: 'success',
+          audioUrl: response.data.audioUrl,
+          generationId: response.data.generationId,
+          chunks: 1
+        };
+      } else {
+        throw new Error('No audio URL received from server');
       }
-
-      // Step 2: Get the audio URL
-      let audioUrl = '';
-      let attempts = 0;
-      const maxAttempts = 30;
-      const delay = 2000; // 2 seconds
-
-      console.log('Polling for audio URL...');
-      while (attempts < maxAttempts) {
-        try {
-          console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
-          const articleResponse = await this.makeRequest<any>('GET', `/articleStatus?transcriptionId=${transcriptionId}`);
-
-          if (articleResponse.converted && articleResponse.audioUrl) {
-            audioUrl = articleResponse.audioUrl;
-            console.log('Audio URL received:', audioUrl);
-            break;
-          }
-
-          console.log('Audio not ready yet, waiting...');
-        } catch (error) {
-          console.log(`Polling attempt ${attempts + 1} failed:`, error);
-        }
-
-        attempts++;
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-
-      if (!audioUrl) {
-        throw new Error('Failed to get audio URL after maximum attempts');
-      }
-
-      return {
-        status: 'success',
-        transcriptionId,
-        contentLength: text.length,
-        wordCount: text.split(/\s+/).length,
-        audioUrl
-      };
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating speech:', error);
+      // Include server error details if available
+      if (error.response?.data?.error) {
+        throw new Error(`Server error: ${error.response.data.error}`);
+      }
+      // Handle timeout errors
+      if (error.code === 'ECONNABORTED') {
+        throw new Error('Request timed out. Text might be too long or server is busy.');
+      }
       throw error;
     }
   }
@@ -225,7 +128,6 @@ class PlayHTClient {
 
       const response = await axios.post(`${this.baseUrl}/clone`, formData, {
         headers: {
-          ...this.getHeaders(),
           'Content-Type': 'multipart/form-data'
         }
       });
@@ -240,11 +142,9 @@ class PlayHTClient {
   async getClonedVoices(): Promise<Voice[]> {
     try {
       console.log('Fetching cloned voices');
-      const response = await axios.get(`${this.baseUrl}/cloned-voices`, {
-        headers: this.getHeaders()
-      });
+      const response = await axios.get(`${this.baseUrl}/cloned-voices`);
 
-      const voices = Array.isArray(response.data) ? response.data : [];
+      const voices = response.data?.voices || [];
       console.log(`Fetched ${voices.length} cloned voices`);
       return voices;
     } catch (error) {
@@ -256,38 +156,10 @@ class PlayHTClient {
   async test(): Promise<TestResponse> {
     try {
       console.log('Testing PlayHT API...');
-      console.log('Using credentials:', {
-        apiKey: `${this.apiKey.substring(0, 15)}...`,
-        userId: `${this.userId.substring(0, 4)}...`
+      return this.generateSpeech('Hello, this is a test.', {
+        voice: 's3://voice-cloning-zero-shot/d9ff78ba-d016-47f6-b0ef-dd630f59414e/female-cs/manifest.json',
+        quality: 'premium'
       });
-
-      const response = await this.makeRequest<any>('POST', '/convert', {
-        content: ['Hello, this is a test.'],
-        voice: 'en-US-JennyNeural',
-        title: 'Test Audio',
-        globalSpeed: '1',
-        trimSilence: true
-      });
-
-      console.log('Test response:', response);
-      const { transcriptionId } = response;
-
-      if (!transcriptionId) {
-        throw new Error('No transcriptionId received');
-      }
-
-      // Get the audio URL
-      const articleResponse = await this.makeRequest<any>('GET', `/articleStatus?transcriptionId=${transcriptionId}`);
-      
-      if (!articleResponse.audioUrl) {
-        throw new Error('No audio URL received');
-      }
-
-      return {
-        status: 'success',
-        transcriptionId,
-        audioUrl: articleResponse.audioUrl
-      };
     } catch (error) {
       console.error('API Test Error:', error);
       throw error;

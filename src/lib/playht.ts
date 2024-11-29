@@ -49,15 +49,16 @@ class PlayHTClient {
   private baseUrl = 'https://play.ht/api/v1';
 
   constructor() {
-    this.apiKey = import.meta.env.VITE_PLAYHT_SECRET_KEY;
-    this.userId = import.meta.env.VITE_PLAYHT_USER_ID;
+    const rawApiKey = import.meta.env.VITE_PLAYHT_SECRET_KEY || '';
+    this.apiKey = rawApiKey.startsWith('Bearer ') ? rawApiKey : `Bearer ${rawApiKey}`;
+    this.userId = import.meta.env.VITE_PLAYHT_USER_ID || '';
 
     if (!this.apiKey || !this.userId) {
       throw new Error('PlayHT credentials not found in environment variables');
     }
 
     console.log('PlayHT client initialized with:', {
-      apiKey: `${this.apiKey.substring(0, 4)}...`,
+      apiKey: `${this.apiKey.substring(0, 10)}...`,
       userId: `${this.userId.substring(0, 4)}...`,
       baseUrl: this.baseUrl
     });
@@ -67,8 +68,7 @@ class PlayHTClient {
     return {
       'Authorization': this.apiKey,
       'X-User-ID': this.userId,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
+      'Content-Type': 'application/json'
     };
   }
 
@@ -103,10 +103,9 @@ class PlayHTClient {
         console.error('API Error:', {
           status: error.response?.status,
           statusText: error.response?.statusText,
-          data: error.response?.data,
-          headers: error.response?.headers
+          data: error.response?.data
         });
-        throw new Error(`API Error: ${error.response?.data?.message || error.message}`);
+        throw new Error(`API Error: ${error.response?.data?.error || error.message}`);
       }
       throw error;
     }
@@ -115,20 +114,21 @@ class PlayHTClient {
   async getVoices(): Promise<Voice[]> {
     try {
       console.log('Fetching voices from PlayHT');
-      // Use the correct endpoint and parse the response
-      const response = await axios.get('https://play.ht/api/v1/getVoices', {
+      const response = await axios({
+        method: 'GET',
+        url: `${this.baseUrl}/getVoices`,
         headers: this.getHeaders()
       });
 
       // Log the raw response to see its structure
       console.log('Raw voices response:', response.data);
 
-      // Extract voices from the response and ensure proper mapping
-      const rawVoices = response.data?.voices || [];
-      console.log(`Fetched ${rawVoices.length} voices`);
+      // Extract voices array from response
+      const voices = response.data?.voices || [];
+      console.log(`Fetched ${voices.length} voices`);
 
       // Map the response to our Voice interface with proper ID handling
-      const voices = rawVoices.map((voice: any) => ({
+      return voices.map((voice: any) => ({
         id: voice.voice_id || voice.id || `${voice.name}-${voice.language}`,
         name: voice.name,
         sample: voice.sample,
@@ -144,11 +144,6 @@ class PlayHTClient {
         is_cloned: voice.is_cloned || false,
         voice_engine: voice.voice_engine
       }));
-
-      // Log a few example voices to verify mapping
-      console.log('Example voices:', voices.slice(0, 3));
-
-      return voices;
     } catch (error) {
       console.error('Error fetching voices:', error);
       throw error;
@@ -245,8 +240,11 @@ class PlayHTClient {
   async getClonedVoices(): Promise<Voice[]> {
     try {
       console.log('Fetching cloned voices');
-      const data = await this.makeRequest<any>('GET', '/cloned-voices');
-      const voices = Array.isArray(data) ? data : data.voices || [];
+      const response = await axios.get(`${this.baseUrl}/cloned-voices`, {
+        headers: this.getHeaders()
+      });
+
+      const voices = Array.isArray(response.data) ? response.data : [];
       console.log(`Fetched ${voices.length} cloned voices`);
       return voices;
     } catch (error) {
@@ -255,18 +253,15 @@ class PlayHTClient {
     }
   }
 
-  // Method to run the test
   async test(): Promise<TestResponse> {
     try {
       console.log('Testing PlayHT API...');
       console.log('Using credentials:', {
-        apiKey: `${this.apiKey.substring(0, 4)}...`,
+        apiKey: `${this.apiKey.substring(0, 15)}...`,
         userId: `${this.userId.substring(0, 4)}...`
       });
 
-      // Step 1: Convert text to speech
-      console.log('Step 1: Converting text to speech...');
-      const convertResponse = await this.makeRequest<any>('POST', '/convert', {
+      const response = await this.makeRequest<any>('POST', '/convert', {
         content: ['Hello, this is a test.'],
         voice: 'en-US-JennyNeural',
         title: 'Test Audio',
@@ -274,48 +269,24 @@ class PlayHTClient {
         trimSilence: true
       });
 
-      console.log('Convert response:', convertResponse);
-      const { transcriptionId } = convertResponse;
+      console.log('Test response:', response);
+      const { transcriptionId } = response;
 
       if (!transcriptionId) {
         throw new Error('No transcriptionId received');
       }
 
-      // Step 2: Poll for the audio URL
-      console.log('Step 2: Polling for audio URL...');
-      let audioUrl = '';
-      let attempts = 0;
-      const maxAttempts = 30;
-      const delay = 2000; // 2 seconds
-
-      while (attempts < maxAttempts) {
-        try {
-          console.log(`Polling attempt ${attempts + 1}/${maxAttempts}`);
-          const articleResponse = await this.makeRequest<any>('GET', `/articleStatus?transcriptionId=${transcriptionId}`);
-
-          if (articleResponse.converted && articleResponse.audioUrl) {
-            audioUrl = articleResponse.audioUrl;
-            console.log('Audio URL received:', audioUrl);
-            break;
-          }
-
-          console.log('Audio not ready yet, waiting...');
-        } catch (error) {
-          console.log(`Polling attempt ${attempts + 1} failed:`, error);
-        }
-
-        attempts++;
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-
-      if (!audioUrl) {
-        throw new Error('Failed to get audio URL after maximum attempts');
+      // Get the audio URL
+      const articleResponse = await this.makeRequest<any>('GET', `/articleStatus?transcriptionId=${transcriptionId}`);
+      
+      if (!articleResponse.audioUrl) {
+        throw new Error('No audio URL received');
       }
 
       return {
         status: 'success',
         transcriptionId,
-        audioUrl
+        audioUrl: articleResponse.audioUrl
       };
     } catch (error) {
       console.error('API Test Error:', error);

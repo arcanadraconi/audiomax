@@ -23,8 +23,7 @@ exports.handler = async function(event, context) {
 
     console.log('Request headers received:', {
       auth: authHeader ? `${authHeader.substring(0, 15)}...` : 'missing',
-      userId: userIdHeader ? `${userIdHeader.substring(0, 4)}...` : 'missing',
-      allHeaders: Object.keys(event.headers)
+      userId: userIdHeader ? `${userIdHeader.substring(0, 4)}...` : 'missing'
     });
 
     if (!authHeader || !userIdHeader) {
@@ -35,73 +34,36 @@ exports.handler = async function(event, context) {
           error: 'Missing API credentials',
           details: {
             auth: !!authHeader,
-            userId: !!userIdHeader,
-            headers: Object.keys(event.headers)
+            userId: !!userIdHeader
           }
         })
       };
     }
 
-    // Try both v1 and v2 endpoints
-    const endpoints = [
-      'https://api.play.ht/api/v2/voices',
-      'https://play.ht/api/v1/getVoices'
-    ];
-
-    let successfulResponse = null;
-    let lastError = null;
-
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`Attempting request to ${endpoint}`);
-        const response = await axios({
-          method: 'GET',
-          url: endpoint,
-          headers: {
-            'Authorization': authHeader,
-            'X-User-ID': userIdHeader,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        console.log(`Response from ${endpoint}:`, {
-          status: response.status,
-          dataType: typeof response.data,
-          isArray: Array.isArray(response.data),
-          length: Array.isArray(response.data) ? response.data.length : 
-                 Array.isArray(response.data?.voices) ? response.data.voices.length : 'N/A'
-        });
-
-        // If we get here, the request was successful
-        successfulResponse = response;
-        break;
-      } catch (error) {
-        console.error(`Error with ${endpoint}:`, {
-          status: error.response?.status,
-          data: error.response?.data
-        });
-        lastError = error;
+    // Make request to PlayHT API
+    const response = await axios({
+      method: 'GET',
+      url: 'https://play.ht/api/v1/getVoices',
+      headers: {
+        'Authorization': authHeader,
+        'X-User-ID': userIdHeader,
+        'Content-Type': 'application/json'
       }
-    }
+    });
 
-    if (successfulResponse) {
-      // Format the response consistently
-      const voices = Array.isArray(successfulResponse.data) ? 
-        successfulResponse.data : 
-        successfulResponse.data?.voices || [];
+    console.log('PlayHT API response:', {
+      status: response.status,
+      dataLength: response.data?.length || 0
+    });
 
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ voices })
-      };
-    }
-
-    // If we get here, both endpoints failed
-    throw lastError;
-
+    // Return the voices data
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(response.data)
+    };
   } catch (error) {
-    console.error('Final error details:', {
+    console.error('Error details:', {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status
@@ -112,10 +74,7 @@ exports.handler = async function(event, context) {
       headers,
       body: JSON.stringify({
         error: error.message,
-        details: {
-          status: error.response?.status,
-          data: error.response?.data
-        }
+        details: error.response?.data
       })
     };
   }

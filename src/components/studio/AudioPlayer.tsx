@@ -6,12 +6,14 @@ interface AudioPlayerProps {
   title?: string;
   audioUrl?: string;
   isGenerating?: boolean;
+  generationProgress?: number;
 }
 
 export function AudioPlayer({
   title = 'Generated audio title',
   audioUrl,
-  isGenerating = false
+  isGenerating = false,
+  generationProgress = 0
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -119,9 +121,20 @@ export function AudioPlayer({
       )}
 
       {isGenerating ? (
-        <div className="flex flex-col items-center justify-center py-8 space-y-4">
-          <Loader2 className="h-8 w-8 text-primary animate-spin" />
-          <span className="text-white/60">Generating audio...</span>
+        <div className="flex flex-col space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+              <span className="text-white/60">Generating audio...</span>
+            </div>
+            <span className="text-white/60">{Math.round(generationProgress)}%</span>
+          </div>
+          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${generationProgress}%` }}
+            />
+          </div>
         </div>
       ) : (
         <>

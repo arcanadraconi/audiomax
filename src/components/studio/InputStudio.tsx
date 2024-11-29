@@ -56,7 +56,6 @@ export function InputStudio() {
   const {
     processText: processAudio,
     isProcessing: isProcessingAudio,
-    progress: audioProgress,
     error: audioError,
   } = useAudioProcessing();
 
@@ -352,24 +351,8 @@ export function InputStudio() {
           className="w-full bg-[#4c0562] hover:bg-[#63248D] text-lg font-normal h-12 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ boxShadow: '0 4px 12px #00000030' }}
         >
-          {isGenerating ? generationPhase : isProcessingAudio ? `Processing audio (${audioProgress?.phase})...` : 'Generate audio'}
+          {isGenerating ? generationPhase : 'Generate audio'}
         </Button>
-
-        {/* Audio Processing Progress */}
-        {(isGenerating || audioProgress) && (
-          <div className="mt-4 space-y-2">
-            <div className="flex justify-between text-sm text-white/60">
-              <span>{isGenerating ? generationPhase : audioProgress?.phase}</span>
-              <span>{audioProgress ? `${Math.round(audioProgress.progress)}%` : ''}</span>
-            </div>
-            <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary transition-all duration-300"
-                style={{ width: `${audioProgress ? audioProgress.progress : 0}%` }}
-              />
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

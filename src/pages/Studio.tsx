@@ -31,6 +31,7 @@ export default function Studio() {
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [audioTitle, setAudioTitle] = useState<string>('Generated audio');
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -52,21 +53,30 @@ export default function Studio() {
       setGeneratedAudioUrl(event.detail.url);
       setAudioTitle(event.detail.title);
       setIsGeneratingAudio(false);
+      setGenerationProgress(0);
     };
 
     // Add event listener for audio generation start
     const handleAudioGenerationStart = () => {
       setIsGeneratingAudio(true);
+      setGenerationProgress(0);
+    };
+
+    // Add event listener for audio generation progress
+    const handleAudioGenerationProgress = (event: CustomEvent<{ progress: number }>) => {
+      setGenerationProgress(event.detail.progress);
     };
 
     window.addEventListener('audioGenerationStart', handleAudioGenerationStart);
     window.addEventListener('audioGenerated', handleAudioGenerated as EventListener);
+    window.addEventListener('audioGenerationProgress', handleAudioGenerationProgress as EventListener);
 
     // Cleanup
     return () => {
       window.removeEventListener('resize', checkMobile);
       window.removeEventListener('audioGenerationStart', handleAudioGenerationStart);
       window.removeEventListener('audioGenerated', handleAudioGenerated as EventListener);
+      window.removeEventListener('audioGenerationProgress', handleAudioGenerationProgress as EventListener);
       // Clean up audio URL
       if (generatedAudioUrl) {
         URL.revokeObjectURL(generatedAudioUrl);
@@ -159,6 +169,7 @@ export default function Studio() {
               title={audioTitle}
               audioUrl={generatedAudioUrl || undefined}
               isGenerating={isGeneratingAudio}
+              generationProgress={generationProgress}
             />
 
             {/* Clone Voice */}

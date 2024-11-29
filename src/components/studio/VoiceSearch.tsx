@@ -1,23 +1,7 @@
-/// <reference types="vite/client" />
 import { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
-
-interface Voice {
-  id: string;
-  name: string;
-  sample: string;
-  accent: string;
-  age: string;
-  gender: string;
-  language: string;
-  language_code: string;
-  loudness: string;
-  style: string;
-  tempo: string;
-  texture: string;
-  is_cloned: boolean;
-  voice_engine: string;
-}
+import { playhtClient } from '../../lib/playht';
+import type { Voice } from '../../lib/playht';
 
 interface VoiceSearchProps {
   isLibraryMode: boolean;
@@ -57,21 +41,15 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/v2/voices');
-
-      if (!response.ok) {
-        const text = await response.text();
-        console.error('Voice API Error Response:', text);
-        throw new Error('Failed to fetch voice library');
-      }
-
-      const data = await response.json();
-      console.log('Voice library response:', data);
-      setVoices(data);
-      setFilteredVoices(data);
+      console.log('Fetching voice library...');
+      const voiceList = await playhtClient.getVoices();
+      console.log(`Fetched ${voiceList.length} voices`);
+      setVoices(voiceList);
+      setFilteredVoices(voiceList);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch voices');
-      console.error('Voice library fetch error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch voices';
+      console.error('Voice library fetch error:', errorMessage);
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -82,9 +60,21 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       setError('Voice cloning is not enabled');
       return;
     }
-    // TODO: Implement cloned voices fetch
-    setVoices([]);
-    setFilteredVoices([]);
+    setIsLoading(true);
+    setError(null);
+    try {
+      console.log('Fetching cloned voices...');
+      const clonedVoices = await playhtClient.getClonedVoices();
+      console.log(`Fetched ${clonedVoices.length} cloned voices`);
+      setVoices(clonedVoices);
+      setFilteredVoices(clonedVoices);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch cloned voices';
+      console.error('Cloned voices fetch error:', errorMessage);
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const searchVoices = (term: string) => {
@@ -107,7 +97,8 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
           voice.accent,
           voice.tempo,
           voice.texture,
-          voice.loudness
+          voice.loudness,
+          voice.language
         ].filter(Boolean);
 
         return searchableFields.some(field =>
@@ -128,6 +119,11 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     setSearchTerm('');
     setShowDropdown(false);
     setFilteredVoices([]);
+  };
+
+  const getVoiceKey = (voice: Voice, index: number) => {
+    // Create a unique key by combining multiple voice properties and index
+    return `${voice.id}-${voice.name}-${voice.language}-${index}`;
   };
 
   return (
@@ -154,10 +150,10 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (
         <div className="fixed left-0 right-0 bottom-16 md:absolute md:bottom-auto md:mt-2 z-50">
           <div className="mx-4 md:mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
-            <div className="h-[calc(3*2.5rem)] overflow-y-auto">
-              {filteredVoices.map((voice) => (
+            <div className="max-h-[calc(3*2.5rem)] overflow-y-auto">
+              {filteredVoices.map((voice, index) => (
                 <div
-                  key={voice.id}
+                  key={getVoiceKey(voice, index)}
                   onClick={() => handleVoiceSelect(voice)}
                   className="grid grid-cols-4 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
                 >

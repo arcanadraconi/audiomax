@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
-import { Play, Pause, FileText, Download } from 'lucide-react';
+import { Play, Pause, FileText, Download, Loader2 } from 'lucide-react';
 
 interface AudioPlayerProps {
   title?: string;
   audioUrl?: string;
+  isGenerating?: boolean;
 }
 
 export function AudioPlayer({
   title = 'Generated audio title',
-  audioUrl
+  audioUrl,
+  isGenerating = false
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -89,7 +91,7 @@ export function AudioPlayer({
               link.download = `${title}.mp3`;
               link.click();
             }}
-            disabled={!audioUrl}
+            disabled={!audioUrl || isGenerating}
           >
             <Download className="h-4 w-4" />
           </Button>
@@ -116,39 +118,48 @@ export function AudioPlayer({
         </div>
       )}
 
-      {audioUrl && (
-        <audio ref={audioRef} src={audioUrl} />
-      )}
-
-      <div className="flex flex-col gap-2">
-        <div
-          ref={progressBarRef}
-          className="h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer"
-          onClick={handleProgressClick}
-        >
-          <div
-            className="h-full bg-primary transition-all duration-100"
-            style={{ width: `${progress}%` }}
-          />
+      {isGenerating ? (
+        <div className="flex flex-col items-center justify-center py-8 space-y-4">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          <span className="text-white/60">Generating audio...</span>
         </div>
+      ) : (
+        <>
+          {audioUrl && (
+            <audio ref={audioRef} src={audioUrl} />
+          )}
 
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white/60 hover:bg-white/10 transition-colors duration-300"
-              onClick={handlePlayPause}
-              disabled={!audioUrl}
+          <div className="flex flex-col gap-2">
+            <div
+              ref={progressBarRef}
+              className="h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer"
+              onClick={handleProgressClick}
             >
-              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-            </Button>
-            <span className="text-sm text-white/60">
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
+              <div
+                className="h-full bg-primary transition-all duration-100"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-white/60 hover:bg-white/10 transition-colors duration-300"
+                  onClick={handlePlayPause}
+                  disabled={!audioUrl}
+                >
+                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                </Button>
+                <span className="text-sm text-white/60">
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

@@ -40,14 +40,11 @@ export function useAudioProcessing() {
     const service = new AudioProcessingService();
 
     try {
-      // Validate text
-      if (!service.validateText(text)) {
-        throw new Error('Invalid text input. Please check your text and try again.');
-      }
-
+      console.log('Starting audio processing with text length:', text.length);
       const processingOptions: AudioProcessingOptions = {
         ...options,
         onProgress: (progress) => {
+          console.log('Audio processing progress:', progress);
           setState(prev => ({
             ...prev,
             progress: {
@@ -61,9 +58,11 @@ export function useAudioProcessing() {
 
       // Process text to audio
       const audioBlob = await service.processText(text, processingOptions);
+      console.log('Audio processing complete, blob size:', audioBlob.size);
       
       // Create URL for the audio blob
       const url = URL.createObjectURL(audioBlob);
+      console.log('Created audio URL:', url);
       
       setState(prev => ({
         ...prev,
@@ -74,6 +73,7 @@ export function useAudioProcessing() {
 
       return url;
     } catch (error) {
+      console.error('Error in audio processing:', error);
       setState(prev => ({
         ...prev,
         isProcessing: false,

@@ -28,6 +28,9 @@ export default function Studio() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
+  const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
+  const [audioTitle, setAudioTitle] = useState<string>('Generated audio');
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -40,9 +43,36 @@ export default function Studio() {
     // Add event listener for window resize
     window.addEventListener('resize', checkMobile);
 
+    // Add event listener for audio generation
+    const handleAudioGenerated = (event: CustomEvent<{ url: string; title: string }>) => {
+      // Clean up previous audio URL if it exists
+      if (generatedAudioUrl) {
+        URL.revokeObjectURL(generatedAudioUrl);
+      }
+      setGeneratedAudioUrl(event.detail.url);
+      setAudioTitle(event.detail.title);
+      setIsGeneratingAudio(false);
+    };
+
+    // Add event listener for audio generation start
+    const handleAudioGenerationStart = () => {
+      setIsGeneratingAudio(true);
+    };
+
+    window.addEventListener('audioGenerationStart', handleAudioGenerationStart);
+    window.addEventListener('audioGenerated', handleAudioGenerated as EventListener);
+
     // Cleanup
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      window.removeEventListener('audioGenerationStart', handleAudioGenerationStart);
+      window.removeEventListener('audioGenerated', handleAudioGenerated as EventListener);
+      // Clean up audio URL
+      if (generatedAudioUrl) {
+        URL.revokeObjectURL(generatedAudioUrl);
+      }
+    };
+  }, [generatedAudioUrl]);
 
   const handleVoiceSelect = (voice: Voice) => {
     setSelectedVoice(voice);
@@ -51,9 +81,7 @@ export default function Studio() {
   return (
     <div className="w-full top-0 text-white font-sans">
       {/* Email Header */}
-
       <Navbar />
-
 
       {/* Main Content */}
       <div className="container mx-auto px-4 mt-8">
@@ -117,7 +145,11 @@ export default function Studio() {
           {/* Right Column - Audio Controls */}
           <div className="space-y-6">
             {/* Audio Player */}
-            <AudioPlayer />
+            <AudioPlayer 
+              title={audioTitle}
+              audioUrl={generatedAudioUrl || undefined}
+              isGenerating={isGeneratingAudio}
+            />
 
             {/* Clone Voice */}
             <VoiceCloning />

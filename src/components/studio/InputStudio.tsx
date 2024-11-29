@@ -1,11 +1,14 @@
+// Previous imports remain the same...
 import { useState, useRef } from 'react';
 import { Button } from "../ui/button";
 import { Upload, ChevronDown, ChevronUp, X, Clock, FileText } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
 import { OpenRouterService } from '../../lib/openRouterService';
-import { DbService } from '../../lib/dbService';
+import { useAudioProcessing } from '../../hooks/useAudioProcessing';
+import { env } from '../../env';
+import { playhtClient } from '../../lib/playht';
 
-// Define allowed file types and max size (5MB)
+// Previous interfaces and constants remain the same...
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
@@ -72,10 +75,19 @@ export function InputStudio() {
   const [processedChunks, setProcessedChunks] = useState<ChunkInfo[]>([]);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
+  const [generationPhase, setGenerationPhase] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Use the audio processing hook
+  const {
+    processText: processAudio,
+    isProcessing: isProcessingAudio,
+    progress: audioProgress,
+    error: audioError,
+  } = useAudioProcessing();
+
   // Check if voice cloning is enabled from environment
-  const isVoiceCloningEnabled = import.meta.env.VITE_ENABLE_VOICE_CLONING === 'true';
+  const isVoiceCloningEnabled = env.features.voiceCloning;
 
   const validateFile = (file: File): string | null => {
     // Check file size
@@ -128,6 +140,7 @@ export function InputStudio() {
   };
 
   const handleVoiceSelect = (voice: Voice) => {
+    console.log('Selected voice:', voice);
     setSelectedVoice(voice);
   };
 
@@ -149,13 +162,19 @@ export function InputStudio() {
 
     setError('');
     setIsGenerating(true);
+    setGenerationPhase('Generating transcript...');
 
     try {
+      // Notify that audio generation is starting
+      window.dispatchEvent(new CustomEvent('audioGenerationStart'));
+
       // Generate transcript with LLaMA
+      console.log('Generating transcript...');
       const result = await OpenRouterService.generateTranscript(
         textInput,
         selectedAudience.description
       );
+      console.log('Transcript generated:', result);
 
       // Process chunks with word count and duration
       const processedChunksWithInfo = result.chunks.map(chunk => {
@@ -171,20 +190,45 @@ export function InputStudio() {
       setEstimatedDuration(result.estimatedDuration);
       setTotalWordCount(result.fullText.split(/\s+/).length);
 
-      // Save to MongoDB
-      await DbService.saveTranscript(
-        result.chunks,
-        selectedVoice,
-        selectedAudience.description
-      );
+      // Generate audio using PlayHT
+      setGenerationPhase('Generating audio...');
+      console.log('Generating audio with PlayHT...');
+      console.log('Voice:', selectedVoice);
+      console.log('Text:', result.fullText);
+
+      const audioResponse = await playhtClient.generateSpeech(result.fullText, {
+        voice: selectedVoice.id,
+        quality: 'premium',
+        speed: 1.0,
+      });
+
+      console.log('Audio generated:', audioResponse);
+
+      // Create URL for the audio
+      const audioUrl = audioResponse.audioUrl;
+      console.log('Audio URL:', audioUrl);
+
+      // Notify parent component about the generated audio
+      window.dispatchEvent(new CustomEvent('audioGenerated', {
+        detail: {
+          url: audioUrl,
+          title: selectedFile ? selectedFile.name : 'Generated Audio'
+        }
+      }));
 
     } catch (err) {
       console.error('Content processing error:', err);
-      setError('');
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred during processing';
+      console.error('Error details:', errorMessage);
+      setError(errorMessage);
     } finally {
       setIsGenerating(false);
+      setGenerationPhase('');
     }
   };
+
+  // Combine error messages
+  const displayError = error || audioError;
 
   return (
     <div className="space-y-6">
@@ -225,9 +269,9 @@ export function InputStudio() {
         )}
 
         {/* Error message */}
-        {error && (
-          <div className="mt-2 text-red-400 text-sm">
-            {error}
+        {displayError && (
+          <div className="mt-2 text-red-400 text-sm whitespace-pre-wrap">
+            {displayError}
           </div>
         )}
 
@@ -256,7 +300,6 @@ export function InputStudio() {
                 <Clock className="w-4 h-4 mr-2" />
                 Duration: ~{Math.round(estimatedDuration)} minutes
               </div>
-              
             </div>
           </div>
         )}
@@ -307,8 +350,7 @@ export function InputStudio() {
                 className="w-10 h-5 bg-white/20 rounded-full relative"
               >
                 <div
-                  className={`absolute w-4 h-4 bg-primary rounded-full top-0.5 transition-all duration-300 ${isLibraryMode ? 'left-0.5' : 'left-[calc(100%-20px)]'
-                    }`}
+                  className={`absolute w-4 h-4 bg-primary rounded-full top-0.5 transition-all duration-300 ${isLibraryMode ? 'left-0.5' : 'left-[calc(100%-20px)]'}`}
                 />
               </button>
               <span className="text-sm text-white/60">Clone</span>
@@ -335,12 +377,28 @@ export function InputStudio() {
       <div className="relative z-0">
         <Button
           onClick={handleGenerateClick}
-          disabled={isGenerating || !textInput.trim() || !selectedVoice || !selectedAudience}
+          disabled={isGenerating || isProcessingAudio || !textInput.trim() || !selectedVoice || !selectedAudience}
           className="w-full bg-[#4c0562] hover:bg-[#63248D] text-lg font-normal h-12 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ boxShadow: '0 4px 12px #00000030' }}
         >
-          {isGenerating ? 'Processing...' : 'Generate audio'}
+          {isGenerating ? generationPhase : isProcessingAudio ? `Processing audio (${audioProgress?.phase})...` : 'Generate audio'}
         </Button>
+
+        {/* Audio Processing Progress */}
+        {audioProgress && (
+          <div className="mt-4 space-y-2">
+            <div className="flex justify-between text-sm text-white/60">
+              <span>{audioProgress.phase}</span>
+              <span>{Math.round(audioProgress.progress)}%</span>
+            </div>
+            <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${audioProgress.progress}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Content Sections */}

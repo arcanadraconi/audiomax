@@ -1,4 +1,3 @@
-import natural from 'natural';
 import nlp from 'compromise';
 
 export interface ProcessedChunk {
@@ -8,23 +7,19 @@ export interface ProcessedChunk {
 }
 
 export class TranscriptProcessor {
-  private tokenizer: natural.WordTokenizer;
-  private sentenceTokenizer: natural.SentenceTokenizer;
   private maxWordsPerChunk: number;
 
   constructor(maxWordsPerChunk = 100) {
-    this.tokenizer = new natural.WordTokenizer();
-    this.sentenceTokenizer = new natural.SentenceTokenizer();
     this.maxWordsPerChunk = maxWordsPerChunk;
   }
 
   private countWords(text: string): number {
-    const words = this.tokenizer.tokenize(text);
-    return words ? words.length : 0;
+    return text.trim().split(/\s+/).length;
   }
 
   private splitIntoSentences(text: string): string[] {
-    return this.sentenceTokenizer.tokenize(text);
+    const doc = nlp(text);
+    return doc.sentences().out('array');
   }
 
   private optimizeChunk(text: string): string {
@@ -68,7 +63,7 @@ export class TranscriptProcessor {
         }
 
         // Split long sentence into smaller chunks
-        const words = this.tokenizer.tokenize(sentence) || [];
+        const words = sentence.split(/\s+/);
         let tempChunk: string[] = [];
         let tempWordCount = 0;
 
@@ -135,7 +130,7 @@ export class TranscriptProcessor {
 
     // Check for valid characters and structure
     const doc = nlp(chunk);
-    const sentences = doc.sentences().json();
+    const sentences = doc.sentences().out('array');
     
     // Ensure chunk has at least one valid sentence
     if (sentences.length === 0) {

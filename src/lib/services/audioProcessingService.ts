@@ -1,158 +1,78 @@
-import { TranscriptProcessor, ProcessedChunk } from './transcriptProcessor';
-import { ParallelAudioGenerator, AudioChunk } from './parallelAudioGenerator';
-import { AudioAssembler } from './audioAssembler';
+import { playhtClient } from '../playht';
 
 export interface ProcessingProgress {
   phase: 'processing' | 'generating' | 'assembling';
   progress: number;
   totalPhases: number;
-  currentChunk?: AudioChunk;
 }
 
 export interface AudioProcessingOptions {
   voice: string;
   quality?: 'draft' | 'low' | 'medium' | 'high' | 'premium';
   speed?: number;
-  maxWordsPerChunk?: number;
-  maxConcurrentJobs?: number;
   onProgress?: (progress: ProcessingProgress) => void;
 }
 
 export class AudioProcessingService {
-  private transcriptProcessor: TranscriptProcessor;
-  private audioGenerator: ParallelAudioGenerator;
-  private audioAssembler: AudioAssembler;
-
-  constructor(options?: { maxWordsPerChunk?: number; maxConcurrentJobs?: number }) {
-    this.transcriptProcessor = new TranscriptProcessor(options?.maxWordsPerChunk);
-    this.audioGenerator = new ParallelAudioGenerator(options?.maxConcurrentJobs);
-    this.audioAssembler = new AudioAssembler();
+  constructor() {
+    console.log('Initializing AudioProcessingService');
   }
 
-  public async processText(
-    text: string,
-    options: AudioProcessingOptions
-  ): Promise<Blob> {
-    const { onProgress, ...generationOptions } = options;
-    let currentPhase = 0;
-    const totalPhases = 3;
+  public async processText(text: string, options: AudioProcessingOptions): Promise<Blob> {
+    console.log('Starting audio processing');
+    console.log('Text preview:', text.substring(0, 100));
+    console.log('Options:', options);
 
-    // Phase 1: Process text into chunks
-    const chunks = this.transcriptProcessor.processTranscript(text);
-    currentPhase++;
+    try {
+      if (options.onProgress) {
+        options.onProgress({
+          phase: 'processing',
+          progress: 0,
+          totalPhases: 3
+        });
+      }
 
-    if (onProgress) {
-      onProgress({
-        phase: 'processing',
-        progress: 100,
-        totalPhases,
+      // Generate audio using PlayHT
+      const result = await playhtClient.generateSpeech(text, {
+        voice: options.voice,
+        quality: options.quality || 'premium',
+        speed: options.speed || 1.0,
       });
+
+      if (options.onProgress) {
+        options.onProgress({
+          phase: 'generating',
+          progress: 50,
+          totalPhases: 3
+        });
+      }
+
+      // Download the audio file
+      console.log('Downloading audio from:', result.audioUrl);
+      const response = await fetch(result.audioUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download audio: ${response.status} ${response.statusText}`);
+      }
+
+      const audioBlob = await response.blob();
+      console.log('Audio downloaded, size:', audioBlob.size);
+
+      if (options.onProgress) {
+        options.onProgress({
+          phase: 'assembling',
+          progress: 100,
+          totalPhases: 3
+        });
+      }
+
+      return audioBlob;
+    } catch (error) {
+      console.error('Error in audio processing:', error);
+      throw error;
     }
-
-    // Phase 2: Generate audio for each chunk in parallel
-    const audioChunks = await this.audioGenerator.generateParallel(
-      chunks,
-      {
-        ...generationOptions,
-        onProgress: progress => {
-          if (onProgress) {
-            onProgress({
-              phase: 'generating',
-              progress: progress.completedChunks / progress.totalChunks * 100,
-              totalPhases,
-              currentChunk: progress.currentChunk,
-            });
-          }
-        },
-      }
-    );
-    currentPhase++;
-
-    // Phase 3: Assemble audio chunks
-    const finalAudio = await this.audioAssembler.assembleAudio(
-      audioChunks,
-      progress => {
-        if (onProgress) {
-          onProgress({
-            phase: 'assembling',
-            progress: progress.progress,
-            totalPhases,
-          });
-        }
-      }
-    );
-
-    return finalAudio;
-  }
-
-  public async processTextAndSave(
-    text: string,
-    fileName: string,
-    options: AudioProcessingOptions
-  ): Promise<void> {
-    const { onProgress, ...generationOptions } = options;
-    let currentPhase = 0;
-    const totalPhases = 3;
-
-    // Phase 1: Process text into chunks
-    const chunks = this.transcriptProcessor.processTranscript(text);
-    currentPhase++;
-
-    if (onProgress) {
-      onProgress({
-        phase: 'processing',
-        progress: 100,
-        totalPhases,
-      });
-    }
-
-    // Phase 2: Generate audio for each chunk in parallel
-    const audioChunks = await this.audioGenerator.generateParallel(
-      chunks,
-      {
-        ...generationOptions,
-        onProgress: progress => {
-          if (onProgress) {
-            onProgress({
-              phase: 'generating',
-              progress: progress.completedChunks / progress.totalChunks * 100,
-              totalPhases,
-              currentChunk: progress.currentChunk,
-            });
-          }
-        },
-      }
-    );
-    currentPhase++;
-
-    // Phase 3: Assemble and save audio chunks directly to file
-    await this.audioAssembler.assembleAndSaveAudio(
-      audioChunks,
-      fileName,
-      progress => {
-        if (onProgress) {
-          onProgress({
-            phase: 'assembling',
-            progress: progress.progress,
-            totalPhases,
-          });
-        }
-      }
-    );
-  }
-
-  public estimateProcessingTime(text: string): number {
-    const chunks = this.transcriptProcessor.processTranscript(text);
-    return this.transcriptProcessor.estimateProcessingTime(chunks);
-  }
-
-  public validateText(text: string): boolean {
-    const chunks = this.transcriptProcessor.processTranscript(text);
-    return chunks.every(chunk => this.transcriptProcessor.validateChunk(chunk.text));
   }
 
   public destroy() {
-    this.audioGenerator.destroy();
-    this.audioAssembler.destroy();
+    // No cleanup needed
   }
 }

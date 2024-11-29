@@ -1,7 +1,7 @@
 // Previous imports remain the same...
 import { useState, useRef } from 'react';
 import { Button } from "../ui/button";
-import { Upload, ChevronDown, ChevronUp, X, Clock, FileText } from 'lucide-react';
+import { Upload, ChevronDown, ChevronUp, X, Clock, FileText, Star, Volume2 } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
@@ -234,7 +234,7 @@ export function InputStudio() {
     <div className="space-y-6">
       {/* Upload Area */}
       <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
-        <h2 className="text-2xl font-medium mb-4">Audiomax Studio</h2>
+        <h2 className="text-3xl font-medium mb-4 text-[#8ab9bd]/80">Audiomax Studio</h2>
 
         {/* Hidden file input */}
         <input
@@ -261,7 +261,7 @@ export function InputStudio() {
         ) : (
           <Button
             onClick={handleUploadClick}
-            className="w-full justify-start text-white/80 bg-white/5 border border-white/20 hover:bg-white/10 transition-colors duration-300 text-md font-normal"
+            className="w-full justify-start text-white/70 bg-white/5 border border-white/20 hover:bg-white/10 transition-colors duration-300 text-md font-light"
           >
             <Upload className="mr-2 h-4 w-4" />
             Upload a document
@@ -276,7 +276,7 @@ export function InputStudio() {
         )}
 
         {/* File requirements */}
-        <div className="mt-2 text-white/40 text-xs">
+        <div className="mt-2 text-white/50 text-xs">
           Supported formats: PDF, TXT, DOCX, DOC, MD (Max size: 5MB)
         </div>
 
@@ -289,9 +289,9 @@ export function InputStudio() {
 
         {/* Content Analysis */}
         {estimatedDuration > 0 && (
-          <div className="mt-4 p-3 bg-white/5 rounded-md">
-            <div className="text-white/80 text-sm">Content Analysis:</div>
-            <div className="grid grid-cols-2 gap-4 mt-2">
+          <div className="mt-3 p-3 bg-white/5 rounded-md">
+            <div className="text-white/70 text-sm">Content Analysis:</div>
+            <div className="grid grid-cols-2 gap-2 mt-2">
               <div className="text-white/60 flex items-center">
                 <FileText className="w-4 h-4 mr-2" />
                 Words: {totalWordCount}
@@ -310,7 +310,7 @@ export function InputStudio() {
         <Button
           variant="outline"
           onClick={() => setIsAudienceDropdownOpen(!isAudienceDropdownOpen)}
-          className="w-full justify-between text-white/70 bg-white/5 border-white/20 hover:bg-white/10 transition-colors duration-300 shadow-lg text-md font-normal"
+          className="w-full justify-between text-white/70 bg-white/5 border-white/20 py-6 hover:bg-white/10 transition-colors duration-300 shadow-lg text-md font-normal"
         >
           {selectedAudience ? selectedAudience.name : 'Choose your audience'}
           {isAudienceDropdownOpen ? (
@@ -340,8 +340,8 @@ export function InputStudio() {
 
       {/* Voice Selection */}
       <div className="relative z-10 bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 mb-2 border border-white/10 shadow-lg">
-        <div className="flex justify-between items-center mb-2">
-          <span className="text-white/80">Voice's choice</span>
+        <div className="flex justify-between items-center mb-4">
+          <span className="text-white/70">Voice's choice</span>
           {isVoiceCloningEnabled && (
             <div className="flex items-center gap-2">
               <span className="text-sm text-white/60">Library</span>
@@ -364,8 +364,8 @@ export function InputStudio() {
         />
 
         {selectedVoice && (
-          <div className="mt-2 px-3 py-1 bg-white/10 rounded-md">
-            <div className="text-white/80 text-sm font-medium">{selectedVoice.name}</div>
+          <div className="mt-4 px-4 py-2 bg-white/10 rounded-md ">
+            <div className="text-white/80 text-md font-mormal flex justify-left items-center mb-2">{selectedVoice.name} <Star className="h-4 w-4 text-white/40 ml-2" /><Volume2 className="h-4 w-4 text-white/40 ml-2 " /></div>
             <div className="text-white/60 text-sm">
               {selectedVoice.gender}, {selectedVoice.age}, {selectedVoice.style}, {selectedVoice.tempo}
             </div>

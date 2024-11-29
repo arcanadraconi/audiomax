@@ -85,27 +85,35 @@ export default function Studio() {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 mt-8">
-        {/* Logo */}
+        
         <div className="mb-12 mt-16 flex justify-center md:justify-start">
-          <img
+         {/* Logo  <img
             src="/audiomax.png"
             alt="AudioMax Logo"
             className="w-60 md:w-90"
-          />
+          />*/}
         </div>
 
         {/* Three Column Layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left Column - Instructions */}
-          <div className="text-white/80 space-y-6 md:block">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-medium">How to Use Audiomax Studio</h2>
+          <div className="text-white/80 space-y-2 md:block">
+            {/* Logo */}
+            <div className="mb-4 mt-0 flex justify-center md:justify-start">
+              <img
+                src="/audiomax.png"
+                alt="AudioMax Logo"
+                className="w-90 md:w-100"
+              />
+            </div>
+            <div className="flex justify-between items-center px-3">
+              <p className="text-xl font-normal text-[#8ab9bd]">How to Use Audiomax Studio</p>
               {isMobile && (
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="md:hidden text-white/60 hover:bg-white/10 transition-colors duration-300"
+                  className="md:hidden text-white/60 hover:bg-white/10 transition-colors  duration-300"
                 >
                   {isExpanded ? (
                     <ChevronUp className="h-5 w-5" />
@@ -115,26 +123,28 @@ export default function Studio() {
                 </Button>
               )}
             </div>
-            <div className={`space-y-4 ${isMobile && !isExpanded ? 'hidden' : 'block'}`}>
-              <div>
-                <h3 className="text-white/90 mb-2">Step 1: Upload Your Content</h3>
-                <p className="text-md text-white/60">Choose one of two ways to start:</p>
-                <ul className="list-disc pl-5 mt-2 text-md text-white/60 space-y-1">
+            <div className= {`space-y-2 ${isMobile && !isExpanded ? 'hidden' : 'block'}`}>
+              <div className="px-3">
+                <h3 className=" text-sm text-[#8ab9bd]/90">Step 1: Upload Your Content</h3>
+                <p className="text-sm text-white/60">Choose one of two ways to start:</p>
+                <ul className="list-disc pl-5 mt-2 text-sm text-white/60 space-y-1">
                   <li>Upload a Document: Click the "Upload Document" button to add a file with the content you want to convert to audio.</li>
                   <li>Describe Your Idea: Type your idea in the text box below if you don't have a document.</li>
                 </ul>
               </div>
-              <div>
-                <h3 className="text-white/90 mb-2">Step 2: Customize Your Audio</h3>
-                <ul className="list-disc pl-5 text-md text-white/60 space-y-1">
+              <div className="px-3">
+                <h3 className=" text-sm mb-2 text-[#8ab9bd]/90">Step 2: Customize Your Audio</h3>
+                <ul className="list-disc pl-5 text-sm text-white/60 space-y-1">
                   <li>Select Your Audience: Use the dropdown to specify the audience type.</li>
                   <li>Choose a Voice: Click on the "Choose Your Voice" dropdown to browse available voice profiles.</li>
                   <li>Or, click Upload Voice to clone your unique voice for the audio.</li>
                 </ul>
               </div>
-              <div>
-                <h3 className="text-white/90 mb-2">Step 3: Generate Your Audio</h3>
-                <p className="text-md text-white/60">Click the Generate Audio button. AudioMax will process your input and create a high-quality audio file tailored to your preferences.</p>
+              <div className="px-3">
+                <h3 className=" text-sm mb-2 text-[#8ab9bd]/90">Step 3: Generate Your Audio</h3>
+                <ul className="list-disc pl-5 mt-2 text-sm text-white/60 space-y-1">
+                <li>Click the Generate Audio button. AudioMax will process your input and create a high-quality audio file tailored to your preferences.</li>
+                </ul>
               </div>
             </div>
           </div>

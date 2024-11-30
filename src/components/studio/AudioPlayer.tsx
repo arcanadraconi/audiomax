@@ -8,6 +8,7 @@ interface AudioPlayerProps {
   isGenerating?: boolean;
   generationProgress?: number;
   onRegenerateClick?: (text: string) => Promise<void>;
+  transcript?: string;  // Add transcript prop
 }
 
 export function AudioPlayer({
@@ -15,16 +16,22 @@ export function AudioPlayer({
   audioUrl,
   isGenerating = false,
   generationProgress = 0,
-  onRegenerateClick
+  onRegenerateClick,
+  transcript: initialTranscript = ''  // Use initialTranscript to avoid naming conflict
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [showTranscript, setShowTranscript] = useState(false);
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState(initialTranscript);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
+
+  // Update transcript state when prop changes
+  useEffect(() => {
+    setTranscript(initialTranscript);
+  }, [initialTranscript]);
 
   useEffect(() => {
     if (audioRef.current) {

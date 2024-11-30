@@ -16,6 +16,7 @@ export function AudioProcessingDemo() {
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [chunks, setChunks] = useState<any[]>([]);
+  const [currentTranscript, setCurrentTranscript] = useState('');
 
   const processText = async (text: string) => {
     try {
@@ -25,6 +26,9 @@ export function AudioProcessingDemo() {
       setError(null);
       setAudioUrl(null);
       setChunks([]);
+
+      // Store the transcript
+      setCurrentTranscript(text);
 
       // Step 1: Process text into chunks
       console.log('Starting text processing...');
@@ -67,6 +71,14 @@ export function AudioProcessingDemo() {
           setProgress(progress.progress);
           console.log(`Assembly progress: ${progress.phase} - ${progress.progress.toFixed(2)}%`);
         });
+
+        // Create array of audio blobs
+        const audioBlobs = await Promise.all(
+          generatedUrls.map(async url => {
+            const response = await fetch(url);
+            return response.blob();
+          })
+        );
 
         const combinedBlob = await assembler.combineAudioUrls(generatedUrls);
         const finalUrl = URL.createObjectURL(combinedBlob);
@@ -111,6 +123,7 @@ export function AudioProcessingDemo() {
           isGenerating={processingState === 'transcribing' || processingState === 'generating'}
           generationProgress={progress}
           onRegenerateClick={processText}
+          transcript={currentTranscript}  // Pass the current transcript
         />
       </div>
     </div>

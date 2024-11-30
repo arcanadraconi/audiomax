@@ -7,13 +7,15 @@ interface AudioPlayerProps {
   audioUrl?: string;
   isGenerating?: boolean;
   generationProgress?: number;
+  onRegenerateClick?: (text: string) => Promise<void>;
 }
 
 export function AudioPlayer({
   title = 'Generated audio title',
   audioUrl,
   isGenerating = false,
-  generationProgress = 0
+  generationProgress = 0,
+  onRegenerateClick
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -70,6 +72,13 @@ export function AudioPlayer({
     audioRef.current.currentTime = pos * audioRef.current.duration;
   };
 
+  const handleRegenerateClick = () => {
+    if (onRegenerateClick && transcript) {
+      onRegenerateClick(transcript);
+      setShowTranscript(false);
+    }
+  };
+
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
       <div className="flex justify-between items-center mb-4">
@@ -105,15 +114,13 @@ export function AudioPlayer({
           <textarea
             value={transcript}
             onChange={(e) => setTranscript(e.target.value)}
-            className="w-full h-32 bg-white/5 border border-white/20 rounded-md p-2 text-white/80 resize-none focus:outline-none focus:border-primary"
+            className="w-full h-32 bg-white/5 border border-white/20 rounded-md p-2 text-white/80 resize-none focus:outline-none focus:border-primary scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30"
             placeholder="Audio transcript..."
           />
           <Button
-            className="mt-2 bg-primary hover:bg-primary/80"
-            onClick={() => {
-              // Handle transcript save and audio regeneration
-              setShowTranscript(false);
-            }}
+            className="mt-2 bg-[#4c0562] hover:bg-[#4c0562]/80 text-md font-normal text-white/70"
+            onClick={handleRegenerateClick}
+            disabled={!transcript}
           >
             Save & Regenerate
           </Button>

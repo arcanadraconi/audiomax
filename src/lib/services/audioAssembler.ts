@@ -1,182 +1,121 @@
-import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { toBlobURL } from '@ffmpeg/util';
-
 interface AssemblyProgress {
-  phase: 'downloading' | 'processing' | 'combining';
+  phase: 'downloading' | 'combining' | 'encoding';
   progress: number;
 }
 
 export class AudioAssembler {
-  private ffmpeg: FFmpeg;
-  private isInitialized = false;
-  private onProgress?: (progress: AssemblyProgress) => void;
+  private onProgress: (progress: AssemblyProgress) => void;
 
-  constructor(onProgress?: (progress: AssemblyProgress) => void) {
-    this.ffmpeg = new FFmpeg();
+  constructor(onProgress: (progress: AssemblyProgress) => void) {
     this.onProgress = onProgress;
   }
 
   /**
-   * Initialize ffmpeg WASM
+   * Combine multiple audio URLs into a single audio blob
    */
-  private async initialize() {
-    if (!this.isInitialized) {
-      // Load ffmpeg core
-      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.2/dist/umd';
-      await this.ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
-      });
-      this.isInitialized = true;
-    }
-  }
-
-  /**
-   * Combine multiple audio URLs into a single audio file
-   */
-  async combineAudioUrls(audioUrls: string[]): Promise<Blob> {
+  async combineAudioUrls(urls: string[]): Promise<Blob> {
     try {
-      await this.initialize();
+      // Step 1: Download all audio blobs
+      this.onProgress({ phase: 'downloading', progress: 0 });
+      const audioBlobs = await this.downloadAudioFiles(urls);
+      this.onProgress({ phase: 'downloading', progress: 100 });
 
-      // Download all audio files
-      const totalFiles = audioUrls.length;
-      for (let i = 0; i < totalFiles; i++) {
-        this.updateProgress('downloading', (i / totalFiles) * 100);
-        
-        const response = await fetch(audioUrls[i]);
-        const buffer = await response.arrayBuffer();
-        const filename = `chunk_${i}.mp3`;
-        
-        await this.ffmpeg.writeFile(filename, new Uint8Array(buffer));
-      }
+      // Step 2: Convert blobs to array buffers
+      this.onProgress({ phase: 'combining', progress: 0 });
+      const audioBuffers = await this.convertBlobsToArrayBuffers(audioBlobs);
+      this.onProgress({ phase: 'combining', progress: 50 });
 
-      this.updateProgress('downloading', 100);
+      // Step 3: Combine array buffers
+      const combinedBuffer = await this.concatenateAudioBuffers(audioBuffers);
+      this.onProgress({ phase: 'combining', progress: 100 });
 
-      // Create concat file
-      const concatContent = audioUrls
-        .map((_, i) => `file 'chunk_${i}.mp3'`)
-        .join('\n');
-      await this.ffmpeg.writeFile('concat.txt', concatContent);
+      // Step 4: Create final blob
+      this.onProgress({ phase: 'encoding', progress: 0 });
+      const finalBlob = new Blob([combinedBuffer], { type: 'audio/mp3' });
+      this.onProgress({ phase: 'encoding', progress: 100 });
 
-      // Combine audio files
-      this.updateProgress('processing', 0);
-      await this.ffmpeg.exec([
-        '-f', 'concat',
-        '-safe', '0',
-        '-i', 'concat.txt',
-        '-c', 'copy',
-        'output.mp3'
-      ]);
-      this.updateProgress('processing', 100);
-
-      // Read the output file
-      this.updateProgress('combining', 0);
-      const data = await this.ffmpeg.readFile('output.mp3');
-      this.updateProgress('combining', 50);
-
-      // Clean up files
-      for (let i = 0; i < totalFiles; i++) {
-        await this.ffmpeg.deleteFile(`chunk_${i}.mp3`);
-      }
-      await this.ffmpeg.deleteFile('concat.txt');
-      await this.ffmpeg.deleteFile('output.mp3');
-      this.updateProgress('combining', 100);
-
-      // Create blob from data
-      return new Blob([data], { type: 'audio/mp3' });
-
+      return finalBlob;
     } catch (error) {
       console.error('Error combining audio:', error);
-      throw new Error(`Failed to combine audio: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
   }
 
   /**
-   * Process a single audio file
+   * Download all audio files as blobs
    */
-  async processAudio(audioUrl: string, options: {
-    normalize?: boolean;
-    trim?: { start?: number; end?: number };
-    speed?: number;
-  } = {}): Promise<Blob> {
+  private async downloadAudioFiles(urls: string[]): Promise<Blob[]> {
+    const downloads = urls.map(async (url, index) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to download audio file ${index + 1}`);
+        }
+        const blob = await response.blob();
+        this.onProgress({
+          phase: 'downloading',
+          progress: ((index + 1) / urls.length) * 100
+        });
+        return blob;
+      } catch (error) {
+        console.error(`Error downloading audio file ${index + 1}:`, error);
+        throw error;
+      }
+    });
+
+    return Promise.all(downloads);
+  }
+
+  /**
+   * Convert blobs to array buffers
+   */
+  private async convertBlobsToArrayBuffers(blobs: Blob[]): Promise<ArrayBuffer[]> {
+    const conversions = blobs.map(async (blob, index) => {
+      try {
+        const buffer = await blob.arrayBuffer();
+        this.onProgress({
+          phase: 'combining',
+          progress: ((index + 1) / blobs.length) * 25 + 25
+        });
+        return buffer;
+      } catch (error) {
+        console.error(`Error converting blob ${index + 1} to array buffer:`, error);
+        throw error;
+      }
+    });
+
+    return Promise.all(conversions);
+  }
+
+  /**
+   * Concatenate array buffers into a single buffer
+   */
+  private async concatenateAudioBuffers(buffers: ArrayBuffer[]): Promise<ArrayBuffer> {
     try {
-      await this.initialize();
-
-      // Download audio file
-      this.updateProgress('downloading', 0);
-      const response = await fetch(audioUrl);
-      const buffer = await response.arrayBuffer();
-      await this.ffmpeg.writeFile('input.mp3', new Uint8Array(buffer));
-      this.updateProgress('downloading', 100);
-
-      // Build ffmpeg command
-      const args: string[] = [];
-      args.push('-i', 'input.mp3');
-
-      // Add filters based on options
-      const filters: string[] = [];
-      if (options.normalize) {
-        filters.push('loudnorm');
-      }
-      if (options.speed && options.speed !== 1) {
-        filters.push(`atempo=${options.speed}`);
-      }
-      if (filters.length > 0) {
-        args.push('-af', filters.join(','));
-      }
-
-      // Add trim options if specified
-      if (options.trim) {
-        if (options.trim.start) {
-          args.push('-ss', options.trim.start.toString());
-        }
-        if (options.trim.end) {
-          args.push('-to', options.trim.end.toString());
-        }
-      }
-
-      args.push('output.mp3');
-
-      // Process audio
-      this.updateProgress('processing', 0);
-      await this.ffmpeg.exec(args);
-      this.updateProgress('processing', 100);
-
-      // Read the output file
-      this.updateProgress('combining', 0);
-      const data = await this.ffmpeg.readFile('output.mp3');
-      this.updateProgress('combining', 50);
-
-      // Clean up files
-      await this.ffmpeg.deleteFile('input.mp3');
-      await this.ffmpeg.deleteFile('output.mp3');
-      this.updateProgress('combining', 100);
-
-      // Create blob from data
-      return new Blob([data], { type: 'audio/mp3' });
-
+      // Calculate total length
+      const totalLength = buffers.reduce((total, buffer) => total + buffer.byteLength, 0);
+      
+      // Create new buffer of combined length
+      const combinedBuffer = new ArrayBuffer(totalLength);
+      const combinedView = new Uint8Array(combinedBuffer);
+      
+      // Copy each buffer into the combined buffer
+      let offset = 0;
+      buffers.forEach((buffer, index) => {
+        const view = new Uint8Array(buffer);
+        combinedView.set(view, offset);
+        offset += buffer.byteLength;
+        
+        this.onProgress({
+          phase: 'combining',
+          progress: ((index + 1) / buffers.length) * 25 + 75
+        });
+      });
+      
+      return combinedBuffer;
     } catch (error) {
-      console.error('Error processing audio:', error);
-      throw new Error(`Failed to process audio: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-
-  /**
-   * Update progress callback
-   */
-  private updateProgress(phase: AssemblyProgress['phase'], progress: number) {
-    if (this.onProgress) {
-      this.onProgress({ phase, progress });
-    }
-  }
-
-  /**
-   * Clean up resources
-   */
-  dispose() {
-    if (this.isInitialized) {
-      this.ffmpeg.terminate();
-      this.isInitialized = false;
+      console.error('Error concatenating audio buffers:', error);
+      throw error;
     }
   }
 }

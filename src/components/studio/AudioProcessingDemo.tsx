@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { TranscriptProcessor } from '../../lib/services/transcriptProcessor';
 import { ParallelAudioGenerator } from '../../lib/services/parallelAudioGenerator';
-import { AudioAssembler } from '../../lib/services/audioAssembler';
+import { AudioAssembler, AssemblyProgress } from '../../lib/services/audioAssembler';
 import { Button } from '../ui/button';
 import { env } from '../../env';
 
-// Longer test text to verify parallel processing (repeated 4 times to ensure multiple chunks)
+// Test text with multiple paragraphs for chunking
 const testText = `Ever felt like you're being sized up, not for who you are, but for where you're from? Like the subtle lilt in your voice, the way you roll your Rs, instantly boxes you in? That's the frustrating reality for many people from "poor" countries – the immediate assumption that they're somehow less than, less deserving, less capable. It's a prejudice as old as time, as insidious as a whisper, and it's high time we called it out. We're talking about the audacity of dreams, the gall of ambition when you dare to aspire beyond the limitations others impose on you based on your origin.
 
 Moreover, this isn't just about individual prejudice; it's woven into the fabric of our societies. Look at the way resources are distributed, the way opportunities are allocated, the way narratives are shaped. Who gets the benefit of the doubt? Who gets access to education, healthcare, and a fair shot at success? More often than not, it's those who already hold power, those who fit the dominant mold. And for those who don't, the climb is steeper, the hurdles higher, the judgment harsher.
@@ -28,6 +28,7 @@ export function AudioProcessingDemo() {
   const [workerProgress, setWorkerProgress] = useState<{[key: number]: number}>({});
   const [audioUrls, setAudioUrls] = useState<string[]>([]);
   const [finalAudioUrl, setFinalAudioUrl] = useState<string | null>(null);
+  const [assemblyProgress, setAssemblyProgress] = useState<AssemblyProgress | null>(null);
 
   const processText = async () => {
     try {
@@ -80,7 +81,7 @@ export function AudioProcessingDemo() {
         setPhase('Setting up audio assembly...');
         console.log('Initializing audio assembler...');
         const assembler = new AudioAssembler((progress) => {
-          setPhase(`${progress.phase} - ${progress.progress.toFixed(2)}%`);
+          setAssemblyProgress(progress);
           console.log(`Assembly progress: ${progress.phase} - ${progress.progress.toFixed(2)}%`);
         });
 
@@ -151,6 +152,23 @@ export function AudioProcessingDemo() {
               style={{ width: `${progress}%` }}
             />
           </div>
+
+          {assemblyProgress && (
+            <div className="mt-4">
+              <div className="flex justify-between text-sm">
+                <span>
+                  {assemblyProgress.phase.charAt(0).toUpperCase() + assemblyProgress.phase.slice(1)}...
+                </span>
+                <span>{Math.round(assemblyProgress.progress)}%</span>
+              </div>
+              <div className="h-2 bg-gray-200 rounded-full mt-1">
+                <div
+                  className="h-full bg-green-500 rounded-full transition-all duration-300"
+                  style={{ width: `${assemblyProgress.progress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

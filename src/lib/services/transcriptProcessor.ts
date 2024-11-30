@@ -1,155 +1,142 @@
 import nlp from 'compromise';
 
-export interface ProcessedChunk {
-  text: string;
+interface ChunkMetadata {
   index: number;
   wordCount: number;
+  charCount: number;
+  estimatedDuration: number;
+}
+
+interface ProcessedChunk {
+  text: string;
+  metadata: ChunkMetadata;
+}
+
+interface Topic {
+  text: string;
+  count: number;
+  normal: string;
 }
 
 export class TranscriptProcessor {
-  private maxWordsPerChunk: number;
+  private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
+  private static readonly TARGET_CHUNK_SIZE = 1000; // Target characters per chunk
+  private static readonly MAX_CHUNK_SIZE = 1500; // Maximum characters per chunk
+  private static readonly MIN_CHUNK_SIZE = 500; // Minimum characters per chunk
 
-  constructor(maxWordsPerChunk = 100) {
-    this.maxWordsPerChunk = maxWordsPerChunk;
-  }
-
-  private countWords(text: string): number {
-    return text.trim().split(/\s+/).length;
-  }
-
-  private splitIntoSentences(text: string): string[] {
+  /**
+   * Process text into optimal chunks for parallel processing
+   */
+  static processText(text: string): ProcessedChunk[] {
+    // Use regex to split text into sentences
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
     const doc = nlp(text);
-    return doc.sentences().out('array');
-  }
+    const topics = doc.topics().json() as Topic[];
 
-  private optimizeChunk(text: string): string {
-    // Use compromise for text cleanup and optimization
-    const doc = nlp(text);
-    
-    // Clean up text
-    const cleaned = doc.normalize({
-      whitespace: true,
-      punctuation: true,
-      case: true,
-      numbers: true,
-      contractions: true
-    }).text();
-    
-    return cleaned;
-  }
-
-  public processTranscript(text: string): ProcessedChunk[] {
-    const sentences = this.splitIntoSentences(text);
+    // Initialize chunks array
     const chunks: ProcessedChunk[] = [];
-    let currentChunk: string[] = [];
-    let currentWordCount = 0;
-    let chunkIndex = 0;
+    let currentChunk = '';
+    let currentSentences: string[] = [];
 
-    sentences.forEach((sentence) => {
-      const sentenceWordCount = this.countWords(sentence);
+    // Process sentences into chunks
+    sentences.forEach((sentence, index) => {
+      const cleanSentence = sentence.trim();
+      const potentialChunk = currentChunk + cleanSentence;
 
-      // If a single sentence exceeds max words, split it further
-      if (sentenceWordCount > this.maxWordsPerChunk) {
-        if (currentChunk.length > 0) {
-          // Process existing chunk before handling long sentence
-          const chunkText = this.optimizeChunk(currentChunk.join(' '));
-          chunks.push({
-            text: chunkText,
-            index: chunkIndex++,
-            wordCount: currentWordCount
-          });
-          currentChunk = [];
-          currentWordCount = 0;
-        }
-
-        // Split long sentence into smaller chunks
-        const words = sentence.split(/\s+/);
-        let tempChunk: string[] = [];
-        let tempWordCount = 0;
-
-        words.forEach((word) => {
-          tempChunk.push(word);
-          tempWordCount++;
-
-          if (tempWordCount >= this.maxWordsPerChunk) {
-            const chunkText = this.optimizeChunk(tempChunk.join(' '));
-            chunks.push({
-              text: chunkText,
-              index: chunkIndex++,
-              wordCount: tempWordCount
-            });
-            tempChunk = [];
-            tempWordCount = 0;
-          }
-        });
-
-        // Handle remaining words in the long sentence
-        if (tempChunk.length > 0) {
-          const chunkText = this.optimizeChunk(tempChunk.join(' '));
-          chunks.push({
-            text: chunkText,
-            index: chunkIndex++,
-            wordCount: tempWordCount
-          });
-        }
-      } else if (currentWordCount + sentenceWordCount > this.maxWordsPerChunk) {
-        // Current chunk would exceed max words, create new chunk
-        const chunkText = this.optimizeChunk(currentChunk.join(' '));
-        chunks.push({
-          text: chunkText,
-          index: chunkIndex++,
-          wordCount: currentWordCount
-        });
-        currentChunk = [sentence];
-        currentWordCount = sentenceWordCount;
+      // Check if adding this sentence would exceed max chunk size
+      if (potentialChunk.length > this.MAX_CHUNK_SIZE && currentChunk.length > this.MIN_CHUNK_SIZE) {
+        // Add current chunk to chunks array
+        chunks.push(this.createChunk(currentChunk, chunks.length));
+        currentChunk = cleanSentence;
+        currentSentences = [cleanSentence];
       } else {
-        // Add sentence to current chunk
-        currentChunk.push(sentence);
-        currentWordCount += sentenceWordCount;
+        currentChunk = potentialChunk;
+        currentSentences.push(cleanSentence);
+      }
+
+      // Check if we're at a good breaking point
+      if (this.isGoodBreakingPoint(currentSentences, topics) && currentChunk.length >= this.TARGET_CHUNK_SIZE) {
+        chunks.push(this.createChunk(currentChunk, chunks.length));
+        currentChunk = '';
+        currentSentences = [];
       }
     });
 
-    // Handle remaining text in the last chunk
+    // Add any remaining text as the final chunk
     if (currentChunk.length > 0) {
-      const chunkText = this.optimizeChunk(currentChunk.join(' '));
-      chunks.push({
-        text: chunkText,
-        index: chunkIndex,
-        wordCount: currentWordCount
-      });
+      chunks.push(this.createChunk(currentChunk, chunks.length));
     }
 
     return chunks;
   }
 
-  public validateChunk(chunk: string): boolean {
-    // Validate chunk length
-    if (chunk.length === 0 || chunk.length > 5000) { // PlayHT typical limit
-      return false;
-    }
+  /**
+   * Determine if the current point is a good place to break the text
+   */
+  private static isGoodBreakingPoint(sentences: string[], topics: Topic[]): boolean {
+    if (sentences.length === 0) return false;
 
-    // Check for valid characters and structure
-    const doc = nlp(chunk);
-    const sentences = doc.sentences().out('array');
-    
-    // Ensure chunk has at least one valid sentence
-    if (sentences.length === 0) {
-      return false;
-    }
+    const lastSentence = sentences[sentences.length - 1];
+    const doc = nlp(lastSentence);
 
-    // Check for basic punctuation and structure
-    const hasValidPunctuation = /[.!?]/.test(chunk);
-    const hasValidWords = this.countWords(chunk) > 0;
+    // Check if sentence ends a conclusion
+    const endsWithConclusion = doc.match('(finally|in conclusion|to summarize|therefore|thus|hence)').found;
+    if (endsWithConclusion) return true;
 
-    return hasValidPunctuation && hasValidWords;
+    // Check if next sentence starts a new topic
+    const startsNewTopic = topics.some(topic => 
+      lastSentence.toLowerCase().includes(topic.text.toLowerCase())
+    );
+    if (startsNewTopic) return true;
+
+    // Check for natural breaks like paragraph markers
+    if (lastSentence.includes('\n\n')) return true;
+
+    return false;
   }
 
-  public estimateProcessingTime(chunks: ProcessedChunk[]): number {
-    // Rough estimate based on typical TTS processing times
-    // Average processing time per word (in milliseconds)
-    const avgTimePerWord = 100;
-    
-    const totalWords = chunks.reduce((sum, chunk) => sum + chunk.wordCount, 0);
-    return totalWords * avgTimePerWord;
+  /**
+   * Create a chunk object with metadata
+   */
+  private static createChunk(text: string, index: number): ProcessedChunk {
+    const words = text.split(/\s+/).length;
+    const estimatedDuration = words / this.WORDS_PER_MINUTE;
+
+    return {
+      text: text.trim(),
+      metadata: {
+        index,
+        wordCount: words,
+        charCount: text.length,
+        estimatedDuration
+      }
+    };
+  }
+
+  /**
+   * Validate a chunk to ensure it meets requirements
+   */
+  static validateChunk(chunk: ProcessedChunk): boolean {
+    return (
+      chunk.text.length >= this.MIN_CHUNK_SIZE &&
+      chunk.text.length <= this.MAX_CHUNK_SIZE &&
+      chunk.metadata.wordCount > 0
+    );
+  }
+
+  /**
+   * Get estimated total duration for all chunks
+   */
+  static getEstimatedTotalDuration(chunks: ProcessedChunk[]): number {
+    return chunks.reduce((total, chunk) => total + chunk.metadata.estimatedDuration, 0);
+  }
+
+  /**
+   * Get total word count for all chunks
+   */
+  static getTotalWordCount(chunks: ProcessedChunk[]): number {
+    return chunks.reduce((total, chunk) => total + chunk.metadata.wordCount, 0);
   }
 }
+
+export type { ProcessedChunk, ChunkMetadata };

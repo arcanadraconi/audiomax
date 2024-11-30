@@ -1,100 +1,136 @@
-// Text chunking utility
+/**
+ * Split text into chunks based on sentence boundaries and length
+ */
 export function splitTextIntoChunks(text: string, maxLength = 1800): string[] {
-    const chunks: string[] = [];
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-    let currentChunk = '';
+  const chunks: string[] = [];
+  const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+  let currentChunk = '';
 
-    for (const sentence of sentences) {
-        const cleanSentence = sentence.trim();
-        
-        // If a single sentence is too long, split by commas
-        if (cleanSentence.length > maxLength) {
-            // Push current chunk if exists
-            if (currentChunk) {
-                chunks.push(currentChunk.trim());
-                currentChunk = '';
-            }
-            
-            // Split long sentence by commas
-            const parts = cleanSentence.split(/,\s*/);
-            let partChunk = '';
-            
-            for (const part of parts) {
-                if (partChunk.length + part.length > maxLength) {
-                    if (partChunk) chunks.push(partChunk.trim());
-                    partChunk = part;
-                } else {
-                    partChunk += (partChunk ? ', ' : '') + part;
-                }
-            }
-            
-            if (partChunk) {
-                currentChunk = partChunk;
-            }
-            continue;
-        }
-
-        // Check if adding this sentence would exceed maxLength
-        if (currentChunk.length + cleanSentence.length > maxLength) {
-            chunks.push(currentChunk.trim());
-            currentChunk = cleanSentence;
-        } else {
-            currentChunk += (currentChunk ? ' ' : '') + cleanSentence;
-        }
-    }
-
-    // Add the last chunk if it exists
-    if (currentChunk) {
-        chunks.push(currentChunk.trim());
-    }
-
-    // Log chunk sizes for debugging
-    chunks.forEach((chunk, i) => {
-        console.log(`Chunk ${i + 1} size: ${chunk.length} characters`);
-        console.log(`Chunk ${i + 1} preview: "${chunk.substring(0, 50)}..."`);
-    });
-
-    return chunks;
-}
-
-// Audio utilities
-export async function combineAudioUrls(urls: string[]): Promise<Blob> {
-    // Fetch all audio files
-    const responses = await Promise.all(
-        urls.map(url => fetch(url).then(res => res.arrayBuffer()))
-    );
-
-    // Combine audio buffers
-    const totalLength = responses.reduce((acc, buffer) => acc + buffer.byteLength, 0);
-    const combined = new Uint8Array(totalLength);
+  for (const sentence of sentences) {
+    const cleanSentence = sentence.trim();
     
-    let offset = 0;
-    responses.forEach(buffer => {
-        combined.set(new Uint8Array(buffer), offset);
-        offset += buffer.byteLength;
-    });
+    if (currentChunk.length + cleanSentence.length > maxLength) {
+      if (currentChunk) chunks.push(currentChunk.trim());
+      currentChunk = cleanSentence;
+    } else {
+      currentChunk += (currentChunk ? ' ' : '') + cleanSentence;
+    }
+  }
 
-    return new Blob([combined], { type: 'audio/mp3' });
+  if (currentChunk) {
+    chunks.push(currentChunk.trim());
+  }
+
+  return chunks;
 }
 
-// Progress calculation
-export function calculateOverallProgress(chunkProgresses: Map<number, number>, totalChunks: number): number {
-    if (chunkProgresses.size === 0) return 0;
-    
-    const totalProgress = Array.from(chunkProgresses.values()).reduce((sum, progress) => sum + progress, 0);
-    return (totalProgress / totalChunks);
+/**
+ * Combine multiple audio URLs into a single blob
+ */
+export async function combineAudioUrls(audioUrls: string[]): Promise<Blob> {
+  // Download all audio files
+  const audioBuffers = await Promise.all(
+    audioUrls.map(async url => {
+      const response = await fetch(url);
+      return response.arrayBuffer();
+    })
+  );
+
+  // Combine audio buffers
+  const totalLength = audioBuffers.reduce((acc, buffer) => acc + buffer.byteLength, 0);
+  const combinedBuffer = new Uint8Array(totalLength);
+  let offset = 0;
+
+  audioBuffers.forEach(buffer => {
+    combinedBuffer.set(new Uint8Array(buffer), offset);
+    offset += buffer.byteLength;
+  });
+
+  return new Blob([combinedBuffer], { type: 'audio/mp3' });
 }
 
-// Format duration
+/**
+ * Convert seconds to formatted duration string
+ */
 export function formatDuration(seconds: number): string {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.round(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-// Estimate audio duration based on word count
-export function estimateAudioDuration(text: string): number {
-    const wordCount = text.split(/\s+/).length;
-    const wordsPerMinute = 150; // Average speaking rate
-    return wordCount / wordsPerMinute;
+/**
+ * Calculate estimated duration based on word count
+ */
+export function estimateDuration(text: string, wordsPerMinute = 150): number {
+  const wordCount = text.split(/\s+/).length;
+  return wordCount / wordsPerMinute;
+}
+
+/**
+ * Create an audio blob URL from base64 data
+ */
+export function base64ToAudioUrl(base64: string): string {
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+  
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+  
+  const byteArray = new Uint8Array(byteNumbers);
+  const blob = new Blob([byteArray], { type: 'audio/mp3' });
+  
+  return URL.createObjectURL(blob);
+}
+
+/**
+ * Clean up blob URLs to prevent memory leaks
+ */
+export function cleanupAudioUrls(urls: string[]): void {
+  urls.forEach(url => {
+    if (url.startsWith('blob:')) {
+      URL.revokeObjectURL(url);
+    }
+  });
+}
+
+/**
+ * Check if audio file is valid MP3
+ */
+export async function validateAudioFile(file: File): Promise<boolean> {
+  // Check MIME type
+  if (!file.type.includes('audio/')) {
+    return false;
+  }
+
+  // Check file size (max 10MB)
+  if (file.size > 10 * 1024 * 1024) {
+    return false;
+  }
+
+  // Check MP3 header
+  const buffer = await file.arrayBuffer();
+  const header = new Uint8Array(buffer.slice(0, 3));
+  
+  // Check for MP3 magic number (ID3 or MPEG sync)
+  return (
+    (header[0] === 0x49 && header[1] === 0x44 && header[2] === 0x33) || // ID3
+    (header[0] === 0xFF && (header[1] & 0xE0) === 0xE0) // MPEG sync
+  );
+}
+
+/**
+ * Get audio file duration
+ */
+export function getAudioDuration(url: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const audio = new Audio();
+    audio.addEventListener('loadedmetadata', () => {
+      resolve(audio.duration);
+    });
+    audio.addEventListener('error', () => {
+      reject(new Error('Failed to load audio'));
+    });
+    audio.src = url;
+  });
 }

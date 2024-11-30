@@ -1,6 +1,9 @@
-import axios from 'axios';
+import { TranscriptProcessor } from './services/transcriptProcessor';
+import { ParallelAudioGenerator } from './services/parallelAudioGenerator';
+import { AudioAssembler } from './services/audioAssembler';
+import { env } from '../env';
 
-type VoiceEngine = 'Play3.0-mini' | 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'PlayHT1.0' | 'Standard';
+type VoiceEngine = 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'PlayHT1.0' | 'Standard' | 'Play3.0-mini';
 
 interface Voice {
   id: string;
@@ -37,16 +40,12 @@ interface SpeechGenerationResponse {
   chunks?: number;
 }
 
-interface TestResponse {
-  status: string;
-  audioUrl: string;
-}
-
 class PlayHTClient {
   private baseUrl: string;
+  private generator: ParallelAudioGenerator | null = null;
+  private assembler: AudioAssembler | null = null;
 
   constructor() {
-    // Use environment variable for server URL, fallback to localhost in development
     this.baseUrl = 'http://localhost:3001/api';
     console.log('PlayHT client initialized with baseUrl:', this.baseUrl);
   }
@@ -54,10 +53,11 @@ class PlayHTClient {
   async getVoices(): Promise<Voice[]> {
     try {
       console.log('Fetching voices from server');
-      const response = await axios.get(`${this.baseUrl}/voices`);
+      const response = await fetch(`${this.baseUrl}/voices`);
+      const data = await response.json();
 
-      console.log('Raw voices response:', response.data);
-      const voices = response.data?.voices || [];
+      console.log('Raw voices response:', data);
+      const voices = data?.voices || [];
       
       // Sort voices by name for better organization
       return voices.sort((a: Voice, b: Voice) => a.name.localeCompare(b.name));
@@ -69,52 +69,90 @@ class PlayHTClient {
 
   async generateSpeech(text: string, options: SpeechGenerationOptions): Promise<SpeechGenerationResponse> {
     try {
-      console.log('Starting speech generation');
-      console.log('Text:', text);
-      console.log('Options:', options);
+      // Notify that generation is starting
+      window.dispatchEvent(new CustomEvent('audioGenerationStart'));
 
-      const response = await axios.post(`${this.baseUrl}/tts`, {
-        text,
-        voice: options.voice,
-        quality: options.quality || 'premium',
-        speed: options.speed || 1
-      }, {
-        timeout: 300000 // 5 minutes timeout for long texts
-      });
+      console.log('Starting speech generation with parallel processing');
+      console.log('Text length:', text.length, 'characters');
 
-      console.log('Generation response:', response.data);
+      // Process text into optimal chunks
+      const chunks = TranscriptProcessor.processText(text);
+      console.log(`Split text into ${chunks.length} chunks`);
 
-      // Handle both single and multiple audio URLs
-      if (response.data.audioUrls) {
-        // Multiple chunks response
-        return {
-          status: 'success',
-          audioUrl: response.data.audioUrls[0], // First URL for backward compatibility
-          audioUrls: response.data.audioUrls,
-          generationIds: response.data.generationIds,
-          chunks: response.data.chunks
-        };
-      } else if (response.data.audioUrl) {
-        // Single chunk response
-        return {
-          status: 'success',
-          audioUrl: response.data.audioUrl,
-          generationId: response.data.generationId,
-          chunks: 1
-        };
-      } else {
-        throw new Error('No audio URL received from server');
+      // Initialize parallel generator if needed
+      if (!this.generator) {
+        this.generator = new ParallelAudioGenerator(
+          3, // Max concurrent generations
+          (progress) => {
+            // Emit progress event
+            window.dispatchEvent(new CustomEvent('audioGenerationProgress', {
+              detail: { 
+                progress: progress.overall,
+                currentChunk: progress.chunks.length,
+                totalChunks: chunks.length
+              }
+            }));
+          }
+        );
       }
+
+      // Initialize audio assembler if needed
+      if (!this.assembler) {
+        this.assembler = new AudioAssembler((progress) => {
+          // Emit assembly progress event
+          window.dispatchEvent(new CustomEvent('audioAssemblyProgress', {
+            detail: { 
+              phase: progress.phase,
+              progress: progress.progress
+            }
+          }));
+        });
+      }
+
+      // Generate audio for all chunks in parallel
+      console.log('Starting parallel audio generation');
+      const audioUrls = await this.generator.generateParallel(chunks, options.voice);
+      console.log(`Generated ${audioUrls.length} audio chunks`);
+
+      // Combine audio chunks if needed
+      let finalAudioUrl: string;
+      if (audioUrls.length > 1) {
+        console.log('Combining audio chunks');
+        const combinedBlob = await this.assembler.combineAudioUrls(audioUrls);
+        finalAudioUrl = URL.createObjectURL(combinedBlob);
+        console.log('Audio chunks combined successfully');
+      } else {
+        finalAudioUrl = audioUrls[0];
+      }
+
+      // Process final audio if needed
+      if (options.speed && options.speed !== 1) {
+        console.log('Processing final audio');
+        const processedBlob = await this.assembler.processAudio(finalAudioUrl, {
+          speed: options.speed
+        });
+        URL.revokeObjectURL(finalAudioUrl);
+        finalAudioUrl = URL.createObjectURL(processedBlob);
+        console.log('Audio processing complete');
+      }
+
+      // Emit completion event
+      window.dispatchEvent(new CustomEvent('audioGenerated', {
+        detail: {
+          url: finalAudioUrl,
+          title: 'Generated Audio'
+        }
+      }));
+
+      return {
+        status: 'success',
+        audioUrl: finalAudioUrl,
+        audioUrls: audioUrls,
+        chunks: chunks.length
+      };
+
     } catch (error: any) {
       console.error('Error generating speech:', error);
-      // Include server error details if available
-      if (error.response?.data?.error) {
-        throw new Error(`Server error: ${error.response.data.error}`);
-      }
-      // Handle timeout errors
-      if (error.code === 'ECONNABORTED') {
-        throw new Error('Request timed out. Text might be too long or server is busy.');
-      }
       throw error;
     }
   }
@@ -126,13 +164,12 @@ class PlayHTClient {
       formData.append('name', name);
       files.forEach(file => formData.append('files', file));
 
-      const response = await axios.post(`${this.baseUrl}/clone`, formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      const response = await fetch(`${this.baseUrl}/clone`, {
+        method: 'POST',
+        body: formData
       });
 
-      return response.data;
+      return response.json();
     } catch (error) {
       console.error('Error cloning voice:', error);
       throw error;
@@ -142,9 +179,10 @@ class PlayHTClient {
   async getClonedVoices(): Promise<Voice[]> {
     try {
       console.log('Fetching cloned voices');
-      const response = await axios.get(`${this.baseUrl}/cloned-voices`);
+      const response = await fetch(`${this.baseUrl}/cloned-voices`);
+      const data = await response.json();
 
-      const voices = response.data?.voices || [];
+      const voices = data?.voices || [];
       console.log(`Fetched ${voices.length} cloned voices`);
       return voices;
     } catch (error) {
@@ -153,20 +191,18 @@ class PlayHTClient {
     }
   }
 
-  async test(): Promise<TestResponse> {
-    try {
-      console.log('Testing PlayHT API...');
-      return this.generateSpeech('Hello, this is a test.', {
-        voice: 's3://voice-cloning-zero-shot/d9ff78ba-d016-47f6-b0ef-dd630f59414e/female-cs/manifest.json',
-        quality: 'premium'
-      });
-    } catch (error) {
-      console.error('API Test Error:', error);
-      throw error;
+  disconnect() {
+    if (this.generator) {
+      this.generator.dispose();
+      this.generator = null;
+    }
+    if (this.assembler) {
+      this.assembler.dispose();
+      this.assembler = null;
     }
   }
 }
 
 export const playhtClient = new PlayHTClient();
-export type { Voice, SpeechGenerationOptions, SpeechGenerationResponse, TestResponse };
+export type { Voice, SpeechGenerationOptions, SpeechGenerationResponse };
 export default playhtClient;

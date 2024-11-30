@@ -1,264 +1,184 @@
 import { FFmpeg } from '@ffmpeg/ffmpeg';
-import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { AudioChunk } from './parallelAudioGenerator';
-import StreamSaver from 'streamsaver';
+import { toBlobURL } from '@ffmpeg/util';
 
 interface AssemblyProgress {
   phase: 'downloading' | 'processing' | 'combining';
   progress: number;
-  totalPhases: number;
 }
 
 export class AudioAssembler {
   private ffmpeg: FFmpeg;
-  private initialized = false;
-  private initPromise: Promise<void> | null = null;
+  private isInitialized = false;
+  private onProgress?: (progress: AssemblyProgress) => void;
 
-  constructor() {
+  constructor(onProgress?: (progress: AssemblyProgress) => void) {
     this.ffmpeg = new FFmpeg();
+    this.onProgress = onProgress;
   }
 
-  private async init() {
-    if (this.initialized) return;
-    
-    if (!this.initPromise) {
-      this.initPromise = (async () => {
-        try {
-          console.log('Initializing FFmpeg...');
-          // Load ffmpeg core
-          const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.2/dist/umd';
-          await this.ffmpeg.load({
-            coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-            wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-          });
-          console.log('FFmpeg initialized successfully');
-          this.initialized = true;
-        } catch (error) {
-          console.error('Failed to initialize FFmpeg:', error);
-          this.initPromise = null;
-          throw error;
-        }
-      })();
+  /**
+   * Initialize ffmpeg WASM
+   */
+  private async initialize() {
+    if (!this.isInitialized) {
+      // Load ffmpeg core
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.2/dist/umd';
+      await this.ffmpeg.load({
+        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm')
+      });
+      this.isInitialized = true;
     }
-
-    await this.initPromise;
   }
 
-  private async downloadChunk(chunk: AudioChunk): Promise<ArrayBuffer> {
-    console.log('Downloading chunk from URL:', chunk.url);
+  /**
+   * Combine multiple audio URLs into a single audio file
+   */
+  async combineAudioUrls(audioUrls: string[]): Promise<Blob> {
     try {
-      const response = await fetch(chunk.url);
-      if (!response.ok) {
-        throw new Error(`Failed to download chunk: ${response.status} ${response.statusText}`);
+      await this.initialize();
+
+      // Download all audio files
+      const totalFiles = audioUrls.length;
+      for (let i = 0; i < totalFiles; i++) {
+        this.updateProgress('downloading', (i / totalFiles) * 100);
+        
+        const response = await fetch(audioUrls[i]);
+        const buffer = await response.arrayBuffer();
+        const filename = `chunk_${i}.mp3`;
+        
+        await this.ffmpeg.writeFile(filename, new Uint8Array(buffer));
       }
-      const buffer = await response.arrayBuffer();
-      console.log('Chunk downloaded successfully, size:', buffer.byteLength);
-      return buffer;
-    } catch (error) {
-      console.error('Error downloading chunk:', error);
-      throw error;
-    }
-  }
 
-  private async processChunk(
-    chunkData: ArrayBuffer,
-    index: number
-  ): Promise<string> {
-    console.log(`Processing chunk ${index}, size: ${chunkData.byteLength}`);
-    const inputFileName = `chunk_${index}.mp3`;
-    const outputFileName = `processed_${index}.mp3`;
+      this.updateProgress('downloading', 100);
 
-    try {
-      // Write chunk to FFMPEG virtual filesystem
-      await this.ffmpeg.writeFile(inputFileName, new Uint8Array(chunkData));
-
-      // Process audio chunk (normalize volume, ensure consistent format)
-      await this.ffmpeg.exec([
-        '-i', inputFileName,
-        '-af', 'loudnorm=I=-16:LRA=11:TP=-1.5',
-        '-ar', '44100',
-        '-ac', '2',
-        '-b:a', '192k',
-        outputFileName
-      ]);
-
-      // Clean up input file
-      await this.ffmpeg.deleteFile(inputFileName);
-
-      console.log(`Chunk ${index} processed successfully`);
-      return outputFileName;
-    } catch (error) {
-      console.error(`Error processing chunk ${index}:`, error);
-      throw error;
-    }
-  }
-
-  private async combineChunks(
-    processedFiles: string[],
-    outputFileName: string
-  ): Promise<Uint8Array> {
-    console.log('Combining chunks:', processedFiles);
-    try {
-      // Create concatenation file
-      const concatContent = processedFiles
-        .map(file => `file '${file}'`)
+      // Create concat file
+      const concatContent = audioUrls
+        .map((_, i) => `file 'chunk_${i}.mp3'`)
         .join('\n');
-      const concatFile = 'concat.txt';
-      
-      await this.ffmpeg.writeFile(concatFile, concatContent);
+      await this.ffmpeg.writeFile('concat.txt', concatContent);
 
-      // Combine all processed chunks
+      // Combine audio files
+      this.updateProgress('processing', 0);
       await this.ffmpeg.exec([
         '-f', 'concat',
         '-safe', '0',
-        '-i', concatFile,
+        '-i', 'concat.txt',
         '-c', 'copy',
-        outputFileName
+        'output.mp3'
       ]);
+      this.updateProgress('processing', 100);
 
-      // Get the final audio data
-      const data = await this.ffmpeg.readFile(outputFileName);
-      const uint8Array = data instanceof Uint8Array ? data : new Uint8Array(Buffer.from(data));
+      // Read the output file
+      this.updateProgress('combining', 0);
+      const data = await this.ffmpeg.readFile('output.mp3');
+      this.updateProgress('combining', 50);
 
-      // Clean up processed files and concat file
-      for (const file of processedFiles) {
-        await this.ffmpeg.deleteFile(file);
+      // Clean up files
+      for (let i = 0; i < totalFiles; i++) {
+        await this.ffmpeg.deleteFile(`chunk_${i}.mp3`);
       }
-      await this.ffmpeg.deleteFile(concatFile);
-      await this.ffmpeg.deleteFile(outputFileName);
+      await this.ffmpeg.deleteFile('concat.txt');
+      await this.ffmpeg.deleteFile('output.mp3');
+      this.updateProgress('combining', 100);
 
-      console.log('Chunks combined successfully, final size:', uint8Array.length);
-      return uint8Array;
+      // Create blob from data
+      return new Blob([data], { type: 'audio/mp3' });
+
     } catch (error) {
-      console.error('Error combining chunks:', error);
-      throw error;
+      console.error('Error combining audio:', error);
+      throw new Error(`Failed to combine audio: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  public async assembleAudio(
-    chunks: AudioChunk[],
-    onProgress?: (progress: AssemblyProgress) => void
-  ): Promise<Blob> {
-    console.log('Starting audio assembly for', chunks.length, 'chunks');
-    await this.init();
-
-    const totalChunks = chunks.length;
-    const processedFiles: string[] = [];
-
+  /**
+   * Process a single audio file
+   */
+  async processAudio(audioUrl: string, options: {
+    normalize?: boolean;
+    trim?: { start?: number; end?: number };
+    speed?: number;
+  } = {}): Promise<Blob> {
     try {
-      // Download and process each chunk
-      for (let i = 0; i < chunks.length; i++) {
-        if (onProgress) {
-          onProgress({
-            phase: 'downloading',
-            progress: (i / totalChunks) * 100,
-            totalPhases: 3
-          });
+      await this.initialize();
+
+      // Download audio file
+      this.updateProgress('downloading', 0);
+      const response = await fetch(audioUrl);
+      const buffer = await response.arrayBuffer();
+      await this.ffmpeg.writeFile('input.mp3', new Uint8Array(buffer));
+      this.updateProgress('downloading', 100);
+
+      // Build ffmpeg command
+      const args: string[] = [];
+      args.push('-i', 'input.mp3');
+
+      // Add filters based on options
+      const filters: string[] = [];
+      if (options.normalize) {
+        filters.push('loudnorm');
+      }
+      if (options.speed && options.speed !== 1) {
+        filters.push(`atempo=${options.speed}`);
+      }
+      if (filters.length > 0) {
+        args.push('-af', filters.join(','));
+      }
+
+      // Add trim options if specified
+      if (options.trim) {
+        if (options.trim.start) {
+          args.push('-ss', options.trim.start.toString());
         }
-
-        const chunkData = await this.downloadChunk(chunks[i]);
-
-        if (onProgress) {
-          onProgress({
-            phase: 'processing',
-            progress: (i / totalChunks) * 100,
-            totalPhases: 3
-          });
+        if (options.trim.end) {
+          args.push('-to', options.trim.end.toString());
         }
-
-        const processedFile = await this.processChunk(chunkData, i);
-        processedFiles.push(processedFile);
       }
 
-      if (onProgress) {
-        onProgress({
-          phase: 'combining',
-          progress: 0,
-          totalPhases: 3
-        });
-      }
+      args.push('output.mp3');
 
-      // Combine all processed chunks
-      const finalData = await this.combineChunks(processedFiles, 'output.mp3');
+      // Process audio
+      this.updateProgress('processing', 0);
+      await this.ffmpeg.exec(args);
+      this.updateProgress('processing', 100);
 
-      if (onProgress) {
-        onProgress({
-          phase: 'combining',
-          progress: 100,
-          totalPhases: 3
-        });
-      }
+      // Read the output file
+      this.updateProgress('combining', 0);
+      const data = await this.ffmpeg.readFile('output.mp3');
+      this.updateProgress('combining', 50);
 
-      console.log('Audio assembly completed successfully');
-      return new Blob([finalData], { type: 'audio/mp3' });
+      // Clean up files
+      await this.ffmpeg.deleteFile('input.mp3');
+      await this.ffmpeg.deleteFile('output.mp3');
+      this.updateProgress('combining', 100);
+
+      // Create blob from data
+      return new Blob([data], { type: 'audio/mp3' });
+
     } catch (error) {
-      console.error('Error in audio assembly:', error);
-      throw error;
+      console.error('Error processing audio:', error);
+      throw new Error(`Failed to process audio: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  public async assembleAndSaveAudio(
-    chunks: AudioChunk[],
-    fileName: string,
-    onProgress?: (progress: AssemblyProgress) => void
-  ): Promise<void> {
-    console.log('Starting audio assembly and save for', chunks.length, 'chunks');
-    const fileStream = StreamSaver.createWriteStream(`${fileName}.mp3`);
-    const writer = fileStream.getWriter();
-
-    await this.init();
-
-    const totalChunks = chunks.length;
-    const processedFiles: string[] = [];
-
-    try {
-      // Download and process each chunk
-      for (let i = 0; i < chunks.length; i++) {
-        if (onProgress) {
-          onProgress({
-            phase: 'downloading',
-            progress: (i / totalChunks) * 100,
-            totalPhases: 3
-          });
-        }
-
-        const chunkData = await this.downloadChunk(chunks[i]);
-
-        if (onProgress) {
-          onProgress({
-            phase: 'processing',
-            progress: (i / totalChunks) * 100,
-            totalPhases: 3
-          });
-        }
-
-        const processedFile = await this.processChunk(chunkData, i);
-        processedFiles.push(processedFile);
-
-        // Write processed chunk directly to stream
-        const processedData = await this.ffmpeg.readFile(processedFile);
-        const uint8Array = processedData instanceof Uint8Array ? processedData : new Uint8Array(Buffer.from(processedData));
-        await writer.write(uint8Array);
-
-        // Clean up processed file
-        await this.ffmpeg.deleteFile(processedFile);
-      }
-
-      await writer.close();
-      console.log('Audio assembly and save completed successfully');
-    } catch (error) {
-      console.error('Error in audio assembly and save:', error);
-      writer.abort();
-      throw error;
+  /**
+   * Update progress callback
+   */
+  private updateProgress(phase: AssemblyProgress['phase'], progress: number) {
+    if (this.onProgress) {
+      this.onProgress({ phase, progress });
     }
   }
 
-  public async destroy() {
-    if (this.initialized) {
-      console.log('Destroying AudioAssembler');
-      await this.ffmpeg.terminate();
-      this.initialized = false;
-      this.initPromise = null;
+  /**
+   * Clean up resources
+   */
+  dispose() {
+    if (this.isInitialized) {
+      this.ffmpeg.terminate();
+      this.isInitialized = false;
     }
   }
 }
+
+export type { AssemblyProgress };

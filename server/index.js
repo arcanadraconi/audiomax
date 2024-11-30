@@ -1,8 +1,9 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const PlayHT = require('playht');
-const { splitTextIntoChunks } = require('./utils');
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import PlayHT from 'playht';
+import { splitTextIntoChunks } from './utils.js';
+import fetch from 'node-fetch';
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -19,22 +20,98 @@ console.log('Initializing PlayHT with:', {
 PlayHT.init({
   apiKey: apiKey,
   userId: userId,
-  defaultVoiceEngine: 'PlayHT2.0'
+  defaultVoiceEngine: 'Play3.0-mini'
 });
 
-// Middleware
-app.use(cors({
+// Test voices for Play3.0-mini
+const testVoices = [
+  {
+    id: 'nova',
+    name: 'Nova',
+    voiceEngine: 'Play3.0-mini',
+    gender: 'female',
+    age: 'young adult',
+    accent: 'american',
+    language: 'English',
+    language_code: 'en-US',
+    style: 'natural',
+    tempo: 'medium',
+    texture: 'clear'
+  },
+  {
+    id: 'stella',
+    name: 'Stella',
+    voiceEngine: 'Play3.0-mini',
+    gender: 'female',
+    age: 'young adult',
+    accent: 'british',
+    language: 'English',
+    language_code: 'en-GB',
+    style: 'natural',
+    tempo: 'medium',
+    texture: 'clear'
+  }
+];
+
+// CORS configuration
+const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://your-production-domain.com'] 
-    : ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-ID'],
+  credentials: true
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// Pre-flight requests
+app.options('*', cors(corsOptions));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
+});
+
+// WebSocket auth endpoint
+app.post('/api/websocket-auth', async (req, res) => {
+  try {
+    if (!apiKey || !userId) {
+      throw new Error('Missing API credentials');
+    }
+
+    console.log('Getting WebSocket auth token...');
+    const response = await fetch('https://api.play.ht/api/v3/websocket-auth', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'X-User-ID': userId,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('PlayHT WebSocket auth failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`WebSocket auth failed: ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('WebSocket auth successful');
+    res.json(data);
+  } catch (error) {
+    console.error('WebSocket auth error:', error);
+    res.status(500).json({ 
+      error: error.message,
+      details: error.response?.data || error.stack
+    });
+  }
 });
 
 // Get available voices
@@ -48,101 +125,34 @@ app.get('/api/voices', async (req, res) => {
     const uniqueEngines = new Set(allVoices.map(v => v.voiceEngine));
     console.log('Available voice engines:', Array.from(uniqueEngines));
 
-    // Map voices to a consistent format
-    const voices = allVoices.map(voice => ({
-      id: voice.id,
-      name: voice.name,
-      sample: voice.previewUrl || voice.sample,
-      accent: voice.accent || '',
-      age: voice.age || '',
-      gender: voice.gender || '',
-      language: voice.language || '',
-      language_code: voice.languageCode || '',
-      loudness: voice.loudness || '',
-      style: voice.style || '',
-      tempo: voice.tempo || '',
-      texture: voice.texture || '',
-      is_cloned: voice.isCloned || false,
-      voiceEngine: voice.voiceEngine || 'PlayHT2.0'
-    }));
+    // Map voices to a consistent format and include test voices
+    const voices = [
+      ...testVoices,
+      ...allVoices.map(voice => ({
+        id: voice.id,
+        name: voice.name,
+        sample: voice.previewUrl || voice.sample,
+        accent: voice.accent || '',
+        age: voice.age || '',
+        gender: voice.gender || '',
+        language: voice.language || '',
+        language_code: voice.languageCode || '',
+        loudness: voice.loudness || '',
+        style: voice.style || '',
+        tempo: voice.tempo || '',
+        texture: voice.texture || '',
+        is_cloned: voice.isCloned || false,
+        voiceEngine: voice.voiceEngine || 'PlayHT2.0'
+      }))
+    ];
 
-    console.log(`Mapped ${voices.length} total voices`);
-    res.json({ voices }); // Return all voices without filtering
+    console.log(`Mapped ${voices.length} voices (including ${testVoices.length} test voices)`);
+    res.json({ voices });
   } catch (error) {
     console.error('Error fetching voices:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Generate speech
-app.post('/api/tts', async (req, res) => {
-  try {
-    const { text, voice, quality = 'premium', speed = 1 } = req.body;
-
-    if (!text || !voice) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-
-    console.log('\n=== Starting Text-to-Speech Generation ===');
-    console.log(`Received text length: ${text.length} characters`);
-    console.log('Analyzing text...');
-
-    // Split text into chunks
-    const chunks = splitTextIntoChunks(text);
-    console.log(`\n✓ Text Analysis Complete`);
-    console.log(`Split into ${chunks.length} chunks:`);
-    chunks.forEach((chunk, i) => {
-        console.log(`\nChunk ${i + 1}:`);
-        console.log(`- Length: ${chunk.length} characters`);
-        console.log(`- Preview: "${chunk.substring(0, 50)}..."`);
-    });
-
-    try {
-      // Process chunks sequentially to avoid rate limiting
-      console.log('\n=== Starting Audio Generation ===');
-      const results = [];
-      for (let i = 0; i < chunks.length; i++) {
-        console.log(`\nProcessing chunk ${i + 1} of ${chunks.length}...`);
-        console.log('Sending to PlayHT API...');
-        const result = await PlayHT.generate(chunks[i], {
-          voiceId: voice,
-          quality,
-          speed,
-          outputFormat: 'mp3'
-        });
-        console.log(`✓ Chunk ${i + 1} processed successfully`);
-        console.log(`- Audio URL: ${result.audioUrl}`);
-        console.log(`- Generation ID: ${result.generationId}`);
-        results.push(result);
-      }
-
-      console.log('\n=== Audio Generation Complete ===');
-      console.log(`Successfully generated ${results.length} audio files`);
-
-      // Return response based on number of chunks
-      if (chunks.length === 1) {
-        console.log('Returning single audio URL');
-        res.json({
-          audioUrl: results[0].audioUrl,
-          generationId: results[0].generationId
-        });
-      } else {
-        console.log('Returning multiple audio URLs');
-        res.json({
-          audioUrls: results.map(r => r.audioUrl),
-          generationIds: results.map(r => r.generationId),
-          chunks: chunks.length
-        });
-      }
-    } catch (genError) {
-      console.error('\n❌ Error during generation:', genError);
-      throw new Error(`Generation failed: ${genError.message}`);
-    }
-  } catch (error) {
-    console.error('\n❌ Error generating speech:', error);
     res.status(500).json({ 
       error: error.message,
-      details: error.response?.data
+      details: error.response?.data || error.stack
     });
   }
 });
@@ -156,13 +166,16 @@ app.post('/api/clone', async (req, res) => {
       return res.status(400).json({ error: 'Missing required parameters' });
     }
 
-    console.log('Cloning voice...', { name });
+    console.log('Cloning voice:', { name });
     const response = await PlayHT.cloneVoice({ name, files });
     console.log('Voice cloned:', response);
     res.json(response);
   } catch (error) {
     console.error('Error cloning voice:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error.message,
+      details: error.response?.data || error.stack
+    });
   }
 });
 
@@ -175,16 +188,24 @@ app.get('/api/cloned-voices', async (req, res) => {
     res.json({ voices });
   } catch (error) {
     console.error('Error fetching cloned voices:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ 
+      error: error.message,
+      details: error.response?.data || error.stack
+    });
   }
 });
 
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ 
+    error: err.message,
+    details: err.stack
+  });
 });
 
+// Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  console.log(`CORS enabled for:`, corsOptions.origin);
 });

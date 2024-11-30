@@ -5,8 +5,8 @@ import { AudioAssembler } from '../../lib/services/audioAssembler';
 import { Button } from '../ui/button';
 import { env } from '../../env';
 
-// Shorter test text for initial testing
-const testText = `Ever felt like you're being sized up, not for who you are, but for where you're from? Like the subtle lilt in your voice, the way you roll your Rs, instantly boxes you in?`;
+// Longer test text to verify parallel processing
+const testText = `Ever felt like you're being sized up, not for who you are, but for where you're from? Like the subtle lilt in your voice, the way you roll your Rs, instantly boxes you in? That's the frustrating reality for many people from "poor" countries – the immediate assumption that they're somehow less than, less deserving, less capable. It's a prejudice as old as time, as insidious as a whisper, and it's high time we called it out. We're talking about the audacity of dreams, the gall of ambition when you dare to aspire beyond the limitations others impose on you based on your origin. Ever felt like you're being sized up, not for who you are, but for where you're from? Like the subtle lilt in your voice, the way you roll your Rs, instantly boxes you in? That's the frustrating reality for many people from "poor" countries – the immediate assumption that they're somehow less than, less deserving, less capable. It's a prejudice as old as time, as insidious as a whisper, and it's high time we called it out. We're talking about the audacity of dreams, the gall of ambition when you dare to aspire beyond the limitations others impose on you based on your origin.`;
 
 // Test voice ID (Play3.0-mini compatible)
 const TEST_VOICE_ID = 'nova';
@@ -46,7 +46,7 @@ export function AudioProcessingDemo() {
       setPhase('Setting up parallel generation...');
       console.log('Initializing parallel generator...');
       const generator = new ParallelAudioGenerator(
-        1, // Use single worker for testing
+        2, // Use 2 workers for parallel processing
         (progress) => {
           setProgress(progress.overall);
           // Update individual worker progress

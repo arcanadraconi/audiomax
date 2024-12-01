@@ -27,6 +27,7 @@ export class PlayHTWebSocket {
   private baseUrl = 'http://localhost:3001/api';
   private pendingMessage: WebSocketMessage | null = null;
   private jobId: string | null = null;
+  private currentVoiceId: string | null = null;
 
   constructor(
     apiKey: string,
@@ -166,6 +167,9 @@ export class PlayHTWebSocket {
   }
 
   async generateSpeech(text: string, voice: string): Promise<void> {
+    // Store the current voice ID
+    this.currentVoiceId = voice;
+
     const message: WebSocketMessage = {
       text,
       voice_id: voice,
@@ -191,6 +195,10 @@ export class PlayHTWebSocket {
       this.ws.close();
       this.ws = null;
     }
+    this.currentVoiceId = null;
+    this.jobId = null;
+    this.audioChunks = [];
+    this.pendingMessage = null;
   }
 }
 

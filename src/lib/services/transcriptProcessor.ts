@@ -21,21 +21,25 @@ interface Topic {
 export class TranscriptProcessor {
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
-  private static readonly TARGET_WORDS = TranscriptProcessor.TARGET_DURATION * TranscriptProcessor.WORDS_PER_MINUTE; // 2250 words
-  private static readonly MIN_WORDS = 2500; // Minimum words needed for 15 minutes
-  private static readonly MIN_CHUNK_WORDS = 700; // Minimum words per chunk
-  private static readonly MAX_CHUNK_WORDS = 1000; // Maximum words per chunk
-  private static readonly TARGET_CHUNKS = 9; // Target number of chunks
-  private static readonly WORDS_PER_CHUNK = Math.floor(TranscriptProcessor.TARGET_WORDS / TranscriptProcessor.TARGET_CHUNKS); // ~321 words per chunk
+  private static readonly TARGET_WORDS = TranscriptProcessor.TARGET_DURATION * TranscriptProcessor.WORDS_PER_MINUTE;
+  private static readonly MIN_WORDS = 1500; // Minimum words per chunk
+  private static readonly MAX_WORDS = 2500; // Maximum words per chunk
+  private static readonly TARGET_CHUNKS = 9; // Target number of chunks for parallel processing
+  private static readonly WORDS_PER_CHUNK = Math.floor(TranscriptProcessor.TARGET_WORDS / TranscriptProcessor.TARGET_CHUNKS);
 
   /**
    * Process text into optimal chunks for parallel processing
    */
   static processText(text: string): ProcessedChunk[] {
+    console.log('Processing text into chunks...');
+    console.log('Target words per chunk:', this.WORDS_PER_CHUNK);
+    
     // Split text into words while preserving sentence boundaries
     const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
     const doc = nlp(text);
     const topics = doc.topics().json() as Topic[];
+
+    console.log(`Found ${sentences.length} sentences`);
 
     // Initialize chunks array
     const chunks: ProcessedChunk[] = [];
@@ -50,7 +54,7 @@ export class TranscriptProcessor {
       const potentialWords = currentWords + sentenceWords;
 
       // Check if adding this sentence would exceed max words per chunk
-      if (potentialWords > this.MAX_CHUNK_WORDS && currentWords >= this.MIN_CHUNK_WORDS) {
+      if (potentialWords > this.MAX_WORDS && currentWords >= this.MIN_WORDS) {
         // Add current chunk to chunks array
         chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
         currentChunk = cleanSentence;
@@ -73,6 +77,24 @@ export class TranscriptProcessor {
         chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
       }
     });
+
+    // Log chunk information
+    chunks.forEach((chunk, index) => {
+      console.log(`Chunk ${index + 1}:`);
+      console.log(`- Words: ${chunk.metadata.wordCount}`);
+      console.log(`- Characters: ${chunk.metadata.charCount}`);
+      console.log(`- Estimated duration: ${chunk.metadata.estimatedDuration.toFixed(2)} minutes`);
+      console.log(`- First 100 chars: "${chunk.text.substring(0, 100)}..."`);
+    });
+
+    // Validate all chunks
+    const invalidChunks = chunks.filter(chunk => !this.validateChunk(chunk));
+    if (invalidChunks.length > 0) {
+      console.warn(`Found ${invalidChunks.length} invalid chunks:`);
+      invalidChunks.forEach(chunk => {
+        console.warn(`- Chunk ${chunk.metadata.index}: ${chunk.metadata.wordCount} words`);
+      });
+    }
 
     return chunks;
   }
@@ -130,8 +152,8 @@ export class TranscriptProcessor {
   static validateChunk(chunk: ProcessedChunk): boolean {
     const wordCount = chunk.metadata.wordCount;
     return (
-      wordCount >= this.MIN_CHUNK_WORDS &&
-      wordCount <= this.MAX_CHUNK_WORDS
+      wordCount >= this.MIN_WORDS &&
+      wordCount <= this.MAX_WORDS
     );
   }
 

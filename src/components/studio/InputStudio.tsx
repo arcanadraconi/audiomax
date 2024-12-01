@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
 import { Upload, ChevronDown, ChevronUp, X, Clock, FileText, Star, Volume2 } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
@@ -57,6 +57,7 @@ export function InputStudio() {
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
   const [generationPhase, setGenerationPhase] = useState<string>('');
+  const [generationProgress, setGenerationProgress] = useState<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use the audio processing hook
@@ -68,6 +69,28 @@ export function InputStudio() {
 
   // Check if voice cloning is enabled from environment
   const isVoiceCloningEnabled = env.features.voiceCloning;
+
+  // Set up event listeners for audio generation progress
+  useEffect(() => {
+    const handleGenerationProgress = (event: CustomEvent) => {
+      const { progress } = event.detail;
+      setGenerationProgress(progress);
+    };
+
+    const handleAssemblyProgress = (event: CustomEvent) => {
+      const { phase, progress } = event.detail;
+      setGenerationPhase(`${phase} (${Math.round(progress)}%)`);
+      setGenerationProgress(progress);
+    };
+
+    window.addEventListener('audioGenerationProgress', handleGenerationProgress as EventListener);
+    window.addEventListener('audioAssemblyProgress', handleAssemblyProgress as EventListener);
+
+    return () => {
+      window.removeEventListener('audioGenerationProgress', handleGenerationProgress as EventListener);
+      window.removeEventListener('audioAssemblyProgress', handleAssemblyProgress as EventListener);
+    };
+  }, []);
 
   const validateFile = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
@@ -141,11 +164,9 @@ export function InputStudio() {
     setError('');
     setIsGenerating(true);
     setGenerationPhase('Generating transcript...');
+    setGenerationProgress(0);
 
     try {
-      // Notify that audio generation is starting
-      window.dispatchEvent(new CustomEvent('audioGenerationStart'));
-
       // Generate transcript with LLaMA
       console.log('Generating transcript...');
       const result = await OpenRouterService.generateTranscript(
@@ -207,6 +228,7 @@ export function InputStudio() {
     } finally {
       setIsGenerating(false);
       setGenerationPhase('');
+      setGenerationProgress(0);
     }
   };
 
@@ -361,7 +383,14 @@ export function InputStudio() {
           className="w-full bg-[#4c0562] hover:bg-[#63248D] text-lg font-normal h-12 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ boxShadow: '0 4px 12px #00000030' }}
         >
-          {isGenerating ? generationPhase : 'Generate audio'}
+          {isGenerating ? (
+            <div className="flex items-center gap-2">
+              <span>{generationPhase}</span>
+              <span>{Math.round(generationProgress)}%</span>
+            </div>
+          ) : (
+            'Generate audio'
+          )}
         </Button>
       </div>
     </div>

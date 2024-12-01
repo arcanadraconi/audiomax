@@ -21,16 +21,23 @@ export class ParallelAudioGenerator {
   private chunkProgress: Map<number, GenerationProgress>;
   private completionCallbacks: Map<number, (url: string) => void>;
   private pendingChunks: Set<number>;
+  private retryAttempts: Map<number, number>;
+  private maxRetries = 3;
+  private retryDelay = 5000; // 5 seconds
 
   constructor(
-    maxConcurrent = 3,
+    maxConcurrent = 2, // Reduced concurrent processing for larger chunks
     onProgress = (progress: { overall: number, chunks: GenerationProgress[] }) => {}
   ) {
     this.onProgress = onProgress;
     this.chunkProgress = new Map();
     this.completionCallbacks = new Map();
     this.pendingChunks = new Set();
-    this.queue = new PQueue({ concurrency: maxConcurrent });
+    this.retryAttempts = new Map();
+    this.queue = new PQueue({ 
+      concurrency: maxConcurrent,
+      timeout: 600000 // 10 minute timeout for larger chunks
+    });
   }
 
   /**
@@ -46,6 +53,7 @@ export class ParallelAudioGenerator {
           status: 'queued'
         });
         this.pendingChunks.add(chunk.metadata.index);
+        this.retryAttempts.set(chunk.metadata.index, 0);
       });
 
       console.log(`Starting parallel generation for ${chunks.length} chunks`);
@@ -59,15 +67,16 @@ export class ParallelAudioGenerator {
         (error) => this.handleWebSocketError(error)
       );
 
-      // Generate all chunks
+      // Generate all chunks with retry logic
       const results = await Promise.all(
-        chunks.map(chunk => this.generateChunkWithQueue(chunk, voice))
+        chunks.map(chunk => this.generateChunkWithRetry(chunk, voice))
       );
 
       // Wait for all chunks to complete
       console.log('Waiting for all chunks to complete...');
       while (this.pendingChunks.size > 0) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log(`Remaining chunks: ${this.pendingChunks.size}`);
       }
 
       // Clean up WebSocket
@@ -93,6 +102,31 @@ export class ParallelAudioGenerator {
   }
 
   /**
+   * Generate audio for a single chunk with retry logic
+   */
+  private async generateChunkWithRetry(chunk: ProcessedChunk, voice: string): Promise<GenerationResult> {
+    let lastError: Error | null = null;
+    const maxAttempts = this.maxRetries;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const result = await this.generateChunkWithQueue(chunk, voice);
+        return result;
+      } catch (error) {
+        lastError = error as Error;
+        console.error(`Attempt ${attempt + 1} failed for chunk ${chunk.metadata.index}:`, error);
+        
+        if (attempt < maxAttempts - 1) {
+          console.log(`Retrying chunk ${chunk.metadata.index} in ${this.retryDelay / 1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+        }
+      }
+    }
+
+    throw lastError || new Error(`Failed to generate chunk ${chunk.metadata.index} after ${maxAttempts} attempts`);
+  }
+
+  /**
    * Generate audio for a single chunk using queue
    */
   private async generateChunkWithQueue(chunk: ProcessedChunk, voice: string): Promise<GenerationResult> {
@@ -113,6 +147,7 @@ export class ParallelAudioGenerator {
    */
   private async generateChunk(chunk: ProcessedChunk, voice: string): Promise<GenerationResult> {
     console.log(`Generating chunk ${chunk.metadata.index} with voice ${voice}`);
+    console.log(`Chunk size: ${chunk.metadata.wordCount} words`);
 
     try {
       // Update progress state
@@ -125,7 +160,7 @@ export class ParallelAudioGenerator {
       const audioUrl = await new Promise<string>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
           reject(new Error('WebSocket generation timeout'));
-        }, 300000); // 5 minute timeout
+        }, 600000); // 10 minute timeout for larger chunks
 
         // Store completion callback
         this.completionCallbacks.set(chunk.metadata.index, (url: string) => {
@@ -251,6 +286,7 @@ export class ParallelAudioGenerator {
     this.chunkProgress.clear();
     this.completionCallbacks.clear();
     this.pendingChunks.clear();
+    this.retryAttempts.clear();
   }
 }
 

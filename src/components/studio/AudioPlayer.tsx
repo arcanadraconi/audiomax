@@ -30,10 +30,9 @@ export function AudioPlayer({
 
   // Update transcript state when prop changes
   useEffect(() => {
-    setTranscript(initialTranscript);
-    // Show transcript when it becomes available
     if (initialTranscript) {
-      setShowTranscript(true);
+      setTranscript(initialTranscript);
+      setShowTranscript(true); // Show transcript when it becomes available
     }
   }, [initialTranscript]);
 
@@ -108,10 +107,12 @@ export function AudioPlayer({
             size="icon"
             className="text-white/60 hover:bg-white/10 transition-colors duration-300"
             onClick={() => {
-              const link = document.createElement('a');
-              link.href = audioUrl || '';
-              link.download = `${title}.mp3`;
-              link.click();
+              if (audioUrl) {
+                const link = document.createElement('a');
+                link.href = audioUrl;
+                link.download = `${title}.mp3`;
+                link.click();
+              }
             }}
             disabled={!audioUrl || isGenerating}
           >
@@ -120,21 +121,21 @@ export function AudioPlayer({
         </div>
       </div>
 
-      {showTranscript && transcript && (
+      {/* Always show transcript if available */}
+      {transcript && showTranscript && (
         <div className="mb-4">
-          <textarea
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            className="w-full h-32 bg-white/5 border border-white/20 rounded-md p-2 text-white/80 resize-none focus:outline-none focus:border-primary scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30"
-            placeholder="Audio transcript..."
-          />
-          <Button
-            className="mt-2 bg-[#4c0562] hover:bg-[#4c0562]/80 text-md font-normal text-white/70"
-            onClick={handleRegenerateClick}
-            disabled={!transcript}
-          >
-            Save & Regenerate
-          </Button>
+          <div className="w-full h-32 bg-white/5 border border-white/20 rounded-md p-2 text-white/80 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
+            {transcript}
+          </div>
+          {onRegenerateClick && (
+            <Button
+              className="mt-2 bg-[#4c0562] hover:bg-[#4c0562]/80 text-md font-normal text-white/70"
+              onClick={handleRegenerateClick}
+              disabled={!transcript}
+            >
+              Save & Regenerate
+            </Button>
+          )}
         </div>
       )}
 

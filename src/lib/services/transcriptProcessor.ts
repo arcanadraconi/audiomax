@@ -22,9 +22,9 @@ export class TranscriptProcessor {
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
   private static readonly TARGET_WORDS = TranscriptProcessor.TARGET_DURATION * TranscriptProcessor.WORDS_PER_MINUTE;
-  private static readonly MIN_WORDS = 1500; // Minimum words per chunk
-  private static readonly MAX_WORDS = 2500; // Maximum words per chunk
-  private static readonly TARGET_CHUNKS = 9; // Target number of chunks for parallel processing
+  private static readonly MIN_WORDS = 200; // Minimum words per chunk
+  private static readonly MAX_WORDS = 1000; // Maximum words per chunk
+  private static readonly TARGET_CHUNKS = 6; // Target number of chunks for parallel processing
   private static readonly WORDS_PER_CHUNK = Math.floor(TranscriptProcessor.TARGET_WORDS / TranscriptProcessor.TARGET_CHUNKS);
 
   /**
@@ -52,6 +52,7 @@ export class TranscriptProcessor {
       const cleanSentence = sentence.trim() + ' ';
       const sentenceWords = cleanSentence.split(/\s+/).length;
       const potentialWords = currentWords + sentenceWords;
+      const isLastSentence = index === sentences.length - 1;
 
       // Check if adding this sentence would exceed max words per chunk
       if (potentialWords > this.MAX_WORDS && currentWords >= this.MIN_WORDS) {
@@ -73,7 +74,8 @@ export class TranscriptProcessor {
       }
 
       // Handle last sentence
-      if (index === sentences.length - 1 && currentChunk.length > 0) {
+      if (isLastSentence && currentChunk.length > 0) {
+        // For the last chunk, we're more lenient with the word count
         chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
       }
     });
@@ -87,8 +89,8 @@ export class TranscriptProcessor {
       console.log(`- First 100 chars: "${chunk.text.substring(0, 100)}..."`);
     });
 
-    // Validate all chunks
-    const invalidChunks = chunks.filter(chunk => !this.validateChunk(chunk));
+    // Validate all chunks except the last one
+    const invalidChunks = chunks.slice(0, -1).filter(chunk => !this.validateChunk(chunk));
     if (invalidChunks.length > 0) {
       console.warn(`Found ${invalidChunks.length} invalid chunks:`);
       invalidChunks.forEach(chunk => {

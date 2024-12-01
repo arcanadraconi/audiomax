@@ -6,6 +6,7 @@ import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
 import { playhtClient, Voice as PlayHTVoice } from '../../lib/playht';
+import { AudioPlayer } from './AudioPlayer';
 
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
@@ -58,6 +59,8 @@ export function InputStudio() {
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
   const [generationPhase, setGenerationPhase] = useState<string>('');
   const [generationProgress, setGenerationProgress] = useState<number>(0);
+  const [generatedAudio, setGeneratedAudio] = useState<{ url: string; transcript: string } | null>(null);
+  const [currentTranscript, setCurrentTranscript] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use the audio processing hook
@@ -83,14 +86,24 @@ export function InputStudio() {
       setGenerationProgress(progress);
     };
 
+    const handleAudioGenerated = (event: CustomEvent) => {
+      const { url } = event.detail;
+      setGeneratedAudio({ url, transcript: currentTranscript });
+      setIsGenerating(false);
+      setGenerationPhase('');
+      setGenerationProgress(0);
+    };
+
     window.addEventListener('audioGenerationProgress', handleGenerationProgress as EventListener);
     window.addEventListener('audioAssemblyProgress', handleAssemblyProgress as EventListener);
+    window.addEventListener('audioGenerated', handleAudioGenerated as EventListener);
 
     return () => {
       window.removeEventListener('audioGenerationProgress', handleGenerationProgress as EventListener);
       window.removeEventListener('audioAssemblyProgress', handleAssemblyProgress as EventListener);
+      window.removeEventListener('audioGenerated', handleAudioGenerated as EventListener);
     };
-  }, []);
+  }, [currentTranscript]); // Add currentTranscript as dependency
 
   const validateFile = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
@@ -165,6 +178,7 @@ export function InputStudio() {
     setIsGenerating(true);
     setGenerationPhase('Generating transcript...');
     setGenerationProgress(0);
+    setGeneratedAudio(null);
 
     try {
       // Generate transcript with LLaMA
@@ -175,15 +189,18 @@ export function InputStudio() {
       );
       console.log('Transcript generated:', result);
 
+      // Store the transcript
+      setCurrentTranscript(result.fullText);
+
       // Update word count and duration
       setEstimatedDuration(result.estimatedDuration);
       setTotalWordCount(result.fullText.split(/\s+/).length);
 
       // Generate audio using PlayHT
       setGenerationPhase('Generating audio...');
-      console.log('Generating audio with PlayHT...');
-      console.log('Voice:', selectedVoice);
-      console.log('Text:', result.fullText);
+      console.log('Starting speech generation with parallel processing');
+      console.log('Text length:', result.fullText.length, 'characters');
+      console.log('Using voice:', selectedVoice.id);
 
       const audioResponse = await playhtClient.generateSpeech(result.fullText, {
         voice: selectedVoice.id,
@@ -193,39 +210,11 @@ export function InputStudio() {
 
       console.log('Audio generated:', audioResponse);
 
-      // Handle multiple audio URLs if text was chunked
-      if (audioResponse.audioUrls && audioResponse.audioUrls.length > 0) {
-        // Notify parent component about each audio chunk
-        audioResponse.audioUrls.forEach((url, index) => {
-          window.dispatchEvent(new CustomEvent('audioGenerated', {
-            detail: {
-              url,
-              title: `${selectedFile ? selectedFile.name : 'Generated Audio'} (Part ${index + 1})`,
-              transcript: result.fullText,
-              totalChunks: audioResponse.audioUrls?.length || 1,
-              chunkIndex: index
-            }
-          }));
-        });
-      } else if (audioResponse.audioUrl) {
-        // Single audio URL
-        window.dispatchEvent(new CustomEvent('audioGenerated', {
-          detail: {
-            url: audioResponse.audioUrl,
-            title: selectedFile ? selectedFile.name : 'Generated Audio',
-            transcript: result.fullText,
-            totalChunks: 1,
-            chunkIndex: 0
-          }
-        }));
-      }
-
     } catch (err) {
       console.error('Content processing error:', err);
       const errorMessage = err instanceof Error ? err.message : 'An error occurred during processing';
       console.error('Error details:', errorMessage);
       setError(errorMessage);
-    } finally {
       setIsGenerating(false);
       setGenerationPhase('');
       setGenerationProgress(0);
@@ -393,6 +382,17 @@ export function InputStudio() {
           )}
         </Button>
       </div>
+
+      {/* Audio Player */}
+      {generatedAudio && (
+        <AudioPlayer
+          title={selectedFile?.name || 'Generated Audio'}
+          audioUrl={generatedAudio.url}
+          transcript={generatedAudio.transcript}
+          isGenerating={isGenerating}
+          generationProgress={generationProgress}
+        />
+      )}
     </div>
   );
 }

@@ -44,8 +44,17 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       console.log('Fetching voice library...');
       const voiceList = await playhtClient.getVoices();
       console.log(`Fetched ${voiceList.length} voices`);
-      setVoices(voiceList);
-      setFilteredVoices(voiceList);
+
+      // Ensure each voice has the correct ID format
+      const processedVoices = voiceList.map(voice => ({
+        ...voice,
+        id: voice.id.includes('s3://')
+          ? voice.id
+          : `s3://voice-cloning-zero-shot/${voice.id}/manifest.json`
+      }));
+
+      setVoices(processedVoices);
+      setFilteredVoices(processedVoices);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch voices';
       console.error('Voice library fetch error:', errorMessage);
@@ -66,8 +75,17 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       console.log('Fetching cloned voices...');
       const clonedVoices = await playhtClient.getClonedVoices();
       console.log(`Fetched ${clonedVoices.length} cloned voices`);
-      setVoices(clonedVoices);
-      setFilteredVoices(clonedVoices);
+
+      // Ensure each voice has the correct ID format
+      const processedVoices = clonedVoices.map(voice => ({
+        ...voice,
+        id: voice.id.includes('s3://')
+          ? voice.id
+          : `s3://voice-cloning-zero-shot/${voice.id}/manifest.json`
+      }));
+
+      setVoices(processedVoices);
+      setFilteredVoices(processedVoices);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch cloned voices';
       console.error('Cloned voices fetch error:', errorMessage);
@@ -114,6 +132,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   };
 
   const handleVoiceSelect = (voice: Voice) => {
+    console.log('Selected voice:', voice);
     setSelectedVoice(voice);
     onVoiceSelect(voice);
     setSearchTerm('');

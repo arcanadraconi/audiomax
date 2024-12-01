@@ -114,7 +114,7 @@ class PlayHTClient {
       }
 
       // Ensure voice ID has the correct format for Play3.0-mini
-      const voiceId = options.voice.startsWith('s3://')
+      const voiceId = options.voice.includes('s3://')
         ? options.voice
         : `s3://voice-cloning-zero-shot/${options.voice}/manifest.json`;
 

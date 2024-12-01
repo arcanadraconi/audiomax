@@ -54,6 +54,9 @@ class PlayHTClient {
     try {
       console.log('Fetching voices from server');
       const response = await fetch(`${this.baseUrl}/voices`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch voices: ${response.statusText}`);
+      }
       const data = await response.json();
 
       console.log('Raw voices response:', data);
@@ -74,6 +77,7 @@ class PlayHTClient {
 
       console.log('Starting speech generation with parallel processing');
       console.log('Text length:', text.length, 'characters');
+      console.log('Using voice:', options.voice);
 
       // Process text into optimal chunks
       const chunks = TranscriptProcessor.processText(text);
@@ -82,7 +86,7 @@ class PlayHTClient {
       // Initialize parallel generator if needed
       if (!this.generator) {
         this.generator = new ParallelAudioGenerator(
-          3, // Max concurrent generations
+          2, // Use 2 workers for parallel processing
           (progress) => {
             // Emit progress event
             window.dispatchEvent(new CustomEvent('audioGenerationProgress', {
@@ -137,7 +141,9 @@ class PlayHTClient {
         detail: {
           url: finalAudioUrl,
           title: 'Generated Audio',
-          transcript: text
+          transcript: text,
+          totalChunks: chunks.length,
+          chunkIndex: chunks.length - 1
         }
       }));
 
@@ -166,6 +172,10 @@ class PlayHTClient {
         body: formData
       });
 
+      if (!response.ok) {
+        throw new Error(`Failed to clone voice: ${response.statusText}`);
+      }
+
       return response.json();
     } catch (error) {
       console.error('Error cloning voice:', error);
@@ -177,8 +187,11 @@ class PlayHTClient {
     try {
       console.log('Fetching cloned voices');
       const response = await fetch(`${this.baseUrl}/cloned-voices`);
-      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(`Failed to fetch cloned voices: ${response.statusText}`);
+      }
 
+      const data = await response.json();
       const voices = data?.voices || [];
       console.log(`Fetched ${voices.length} cloned voices`);
       return voices;

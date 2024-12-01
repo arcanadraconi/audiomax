@@ -2,6 +2,7 @@ import { AssemblyProgress } from './types';
 
 export class AudioAssembler {
   private onProgress: (progress: AssemblyProgress) => void;
+  private chunkSize = 1024 * 1024; // 1MB chunk size for efficient memory usage
 
   constructor(onProgress: (progress: AssemblyProgress) => void) {
     this.onProgress = onProgress;
@@ -31,24 +32,33 @@ export class AudioAssembler {
 
       this.onProgress({ phase: 'combining', progress: 0 });
 
-      // Step 2: Calculate total size
+      // Step 2: Calculate total size and create output buffer
       const totalSize = audioBuffers.reduce((acc, buffer) => acc + buffer.byteLength, 0);
+      console.log(`Total audio size: ${totalSize} bytes`);
       
       // Step 3: Create a buffer to hold all audio data
       const combinedBuffer = new Uint8Array(totalSize);
       
       // Step 4: Copy each chunk into the combined buffer
       let offset = 0;
-      audioBuffers.forEach((buffer, index) => {
-        const chunk = new Uint8Array(buffer);
-        combinedBuffer.set(chunk, offset);
-        offset += buffer.byteLength;
+      for (let i = 0; i < audioBuffers.length; i++) {
+        const chunk = new Uint8Array(audioBuffers[i]);
         
-        this.onProgress({ 
-          phase: 'combining', 
-          progress: ((index + 1) / audioBuffers.length) * 100 
-        });
-      });
+        // Copy in smaller chunks to avoid memory issues
+        for (let j = 0; j < chunk.length; j += this.chunkSize) {
+          const end = Math.min(j + this.chunkSize, chunk.length);
+          const subChunk = chunk.subarray(j, end);
+          combinedBuffer.set(subChunk, offset);
+          offset += subChunk.length;
+          
+          // Update progress based on total bytes processed
+          const progress = (offset / totalSize) * 100;
+          this.onProgress({ 
+            phase: 'combining', 
+            progress 
+          });
+        }
+      }
 
       // Step 5: Create final blob
       this.onProgress({ phase: 'encoding', progress: 0 });

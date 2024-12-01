@@ -25,6 +25,14 @@ interface Voice {
   voice_engine: string;
 }
 
+interface AudioGenerationEvent {
+  url: string;
+  title: string;
+  transcript?: string;
+  totalChunks: number;
+  chunkIndex: number;
+}
+
 export default function Studio() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -34,6 +42,8 @@ export default function Studio() {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [showDemo, setShowDemo] = useState(false);
+  const [transcript, setTranscript] = useState<string>('');
+  const [audioChunks, setAudioChunks] = useState<AudioGenerationEvent[]>([]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -47,21 +57,39 @@ export default function Studio() {
     window.addEventListener('resize', checkMobile);
 
     // Add event listener for audio generation
-    const handleAudioGenerated = (event: CustomEvent<{ url: string; title: string }>) => {
-      // Clean up previous audio URL if it exists
-      if (generatedAudioUrl) {
-        URL.revokeObjectURL(generatedAudioUrl);
+    const handleAudioGenerated = (event: CustomEvent<AudioGenerationEvent>) => {
+      const { url, title, transcript: newTranscript, totalChunks, chunkIndex } = event.detail;
+
+      // Store the chunk
+      setAudioChunks(prev => {
+        const newChunks = [...prev];
+        newChunks[chunkIndex] = event.detail;
+        return newChunks;
+      });
+
+      // If this is the first chunk, set the transcript
+      if (chunkIndex === 0 && newTranscript) {
+        setTranscript(newTranscript);
       }
-      setGeneratedAudioUrl(event.detail.url);
-      setAudioTitle(event.detail.title);
-      setIsGeneratingAudio(false);
-      setGenerationProgress(0);
+
+      // If we have all chunks, combine them
+      if (chunkIndex === totalChunks - 1) {
+        // Clean up previous audio URL if it exists
+        if (generatedAudioUrl) {
+          URL.revokeObjectURL(generatedAudioUrl);
+        }
+        setGeneratedAudioUrl(url);
+        setAudioTitle(title.replace(/ \(Part \d+\)$/, '')); // Remove part number
+        setIsGeneratingAudio(false);
+        setGenerationProgress(0);
+      }
     };
 
     // Add event listener for audio generation start
     const handleAudioGenerationStart = () => {
       setIsGeneratingAudio(true);
       setGenerationProgress(0);
+      setAudioChunks([]);
     };
 
     // Add event listener for audio generation progress
@@ -90,27 +118,18 @@ export default function Studio() {
     setSelectedVoice(voice);
   };
 
+
   return (
     <div className="w-full top-0 text-white font-sans">
-      {/* Email Header */}
       <Navbar />
 
-      {/* Main Content */}
       <div className="container mx-auto px-4 mt-8">
-        
         <div className="mb-12 mt-16 flex justify-center md:justify-start">
-         {/* Logo  <img
-            src="/audiomax.png"
-            alt="AudioMax Logo"
-            className="w-60 md:w-90"
-          />*/}
         </div>
 
-        {/* Three Column Layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Left Column - Instructions */}
           <div className="text-white/80 space-y-2 md:block">
-            {/* Logo */}
             <div className="mb-4 mt-0 flex justify-center md:justify-start">
               <img
                 src="/audiomax.png"
@@ -184,18 +203,15 @@ export default function Studio() {
 
           {/* Right Column - Audio Controls */}
           <div className="space-y-6">
-            {/* Audio Player */}
             <AudioPlayer 
               title={audioTitle}
               audioUrl={generatedAudioUrl || undefined}
               isGenerating={isGeneratingAudio}
               generationProgress={generationProgress}
+              transcript={transcript}
             />
 
-            {/* Clone Voice */}
             <VoiceCloning />
-
-            {/* Voice Library */}
             <VoiceLibrary onVoiceSelect={handleVoiceSelect} />
           </div>
         </div>

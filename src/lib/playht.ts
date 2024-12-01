@@ -109,9 +109,16 @@ class PlayHTClient {
         });
       }
 
+      // Ensure voice ID has the correct format for Play3.0-mini
+      const voiceId = options.voice.startsWith('s3://')
+        ? options.voice
+        : `s3://voice-cloning-zero-shot/${options.voice}/manifest.json`;
+
+      console.log('Using voice ID:', voiceId);
+
       // Generate audio for all chunks in parallel
       console.log('Starting parallel audio generation');
-      const audioUrls = await this.generator.generateParallel(chunks, options.voice);
+      const audioUrls = await this.generator.generateParallel(chunks, voiceId);
       console.log(`Generated ${audioUrls.length} audio chunks`);
 
       // Combine audio chunks if needed
@@ -125,22 +132,12 @@ class PlayHTClient {
         finalAudioUrl = audioUrls[0];
       }
 
-      // Process final audio if needed
-      if (options.speed && options.speed !== 1) {
-        console.log('Processing final audio');
-        const processedBlob = await this.assembler.processAudio(finalAudioUrl, {
-          speed: options.speed
-        });
-        URL.revokeObjectURL(finalAudioUrl);
-        finalAudioUrl = URL.createObjectURL(processedBlob);
-        console.log('Audio processing complete');
-      }
-
       // Emit completion event
       window.dispatchEvent(new CustomEvent('audioGenerated', {
         detail: {
           url: finalAudioUrl,
-          title: 'Generated Audio'
+          title: 'Generated Audio',
+          transcript: text
         }
       }));
 

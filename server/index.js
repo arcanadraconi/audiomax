@@ -23,36 +23,6 @@ PlayHT.init({
   defaultVoiceEngine: 'Play3.0-mini'
 });
 
-// Test voices for Play3.0-mini
-const testVoices = [
-  {
-    id: 'nova',
-    name: 'Nova',
-    voiceEngine: 'Play3.0-mini',
-    gender: 'female',
-    age: 'young adult',
-    accent: 'american',
-    language: 'English',
-    language_code: 'en-US',
-    style: 'natural',
-    tempo: 'medium',
-    texture: 'clear'
-  },
-  {
-    id: 'stella',
-    name: 'Stella',
-    voiceEngine: 'Play3.0-mini',
-    gender: 'female',
-    age: 'young adult',
-    accent: 'british',
-    language: 'English',
-    language_code: 'en-GB',
-    style: 'natural',
-    tempo: 'medium',
-    texture: 'clear'
-  }
-];
-
 // CORS configuration
 const corsOptions = {
   origin: process.env.NODE_ENV === 'production' 
@@ -117,19 +87,19 @@ app.post('/api/websocket-auth', async (req, res) => {
 // Get available voices
 app.get('/api/voices', async (req, res) => {
   try {
-    console.log('Fetching voices...');
+    console.log('Fetching voices from PlayHT...');
     const allVoices = await PlayHT.listVoices();
-    console.log(`Fetched ${allVoices.length} total voices`);
+    console.log(`Fetched ${allVoices.length} voices from PlayHT`);
 
-    // Log unique voice engines
-    const uniqueEngines = new Set(allVoices.map(v => v.voiceEngine));
-    console.log('Available voice engines:', Array.from(uniqueEngines));
+    // Map voices to a consistent format with full voice ID path
+    const voices = allVoices.map(voice => {
+      // Construct the full voice ID path for Play3.0-mini voices
+      const voiceId = voice.voiceEngine === 'Play3.0-mini'
+        ? `s3://voice-cloning-zero-shot/${voice.id}/manifest.json`
+        : voice.id;
 
-    // Map voices to a consistent format and include test voices
-    const voices = [
-      ...testVoices,
-      ...allVoices.map(voice => ({
-        id: voice.id,
+      return {
+        id: voiceId,
         name: voice.name,
         sample: voice.previewUrl || voice.sample,
         accent: voice.accent || '',
@@ -143,10 +113,18 @@ app.get('/api/voices', async (req, res) => {
         texture: voice.texture || '',
         is_cloned: voice.isCloned || false,
         voiceEngine: voice.voiceEngine || 'PlayHT2.0'
-      }))
-    ];
+      };
+    });
 
-    console.log(`Mapped ${voices.length} voices (including ${testVoices.length} test voices)`);
+    console.log(`Mapped ${voices.length} voices`);
+    // Log a few examples to verify the format
+    if (voices.length > 0) {
+      console.log('Example voice IDs:');
+      voices.slice(0, 3).forEach(voice => {
+        console.log(`- ${voice.name}: ${voice.id}`);
+      });
+    }
+
     res.json({ voices });
   } catch (error) {
     console.error('Error fetching voices:', error);

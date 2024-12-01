@@ -10,6 +10,13 @@ import { playhtClient, Voice as PlayHTVoice } from '../../lib/playht';
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
 
+interface AudioResponse {
+  status: string;
+  audioUrl?: string;
+  audioUrls?: string[];
+  chunks?: number;
+}
+
 const audiences = [
   {
     id: 'social-media',
@@ -161,27 +168,33 @@ export function InputStudio() {
         voice: selectedVoice.id,
         quality: 'premium',
         speed: 1.0
-      });
+      }) as AudioResponse;
 
       console.log('Audio generated:', audioResponse);
 
       // Handle multiple audio URLs if text was chunked
-      if (audioResponse.audioUrls) {
+      if (audioResponse.audioUrls && audioResponse.audioUrls.length > 0) {
         // Notify parent component about each audio chunk
         audioResponse.audioUrls.forEach((url, index) => {
           window.dispatchEvent(new CustomEvent('audioGenerated', {
             detail: {
               url,
-              title: `${selectedFile ? selectedFile.name : 'Generated Audio'} (Part ${index + 1})`
+              title: `${selectedFile ? selectedFile.name : 'Generated Audio'} (Part ${index + 1})`,
+              transcript: result.fullText,
+              totalChunks: audioResponse.audioUrls?.length || 1,
+              chunkIndex: index
             }
           }));
         });
-      } else {
+      } else if (audioResponse.audioUrl) {
         // Single audio URL
         window.dispatchEvent(new CustomEvent('audioGenerated', {
           detail: {
             url: audioResponse.audioUrl,
-            title: selectedFile ? selectedFile.name : 'Generated Audio'
+            title: selectedFile ? selectedFile.name : 'Generated Audio',
+            transcript: result.fullText,
+            totalChunks: 1,
+            chunkIndex: 0
           }
         }));
       }
@@ -196,9 +209,6 @@ export function InputStudio() {
       setGenerationPhase('');
     }
   };
-
-  // Combine error messages
-  const displayError = error || audioError;
 
   return (
     <div className="space-y-6">
@@ -239,9 +249,9 @@ export function InputStudio() {
         )}
 
         {/* Error message */}
-        {displayError && (
+        {(error || audioError) && (
           <div className="mt-2 text-red-400 text-sm whitespace-pre-wrap">
-            {displayError}
+            {error || audioError}
           </div>
         )}
 

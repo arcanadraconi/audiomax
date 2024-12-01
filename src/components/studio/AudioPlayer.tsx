@@ -8,7 +8,7 @@ interface AudioPlayerProps {
   isGenerating?: boolean;
   generationProgress?: number;
   onRegenerateClick?: (text: string) => Promise<void>;
-  transcript?: string;  // Add transcript prop
+  transcript?: string;
 }
 
 export function AudioPlayer({
@@ -17,13 +17,13 @@ export function AudioPlayer({
   isGenerating = false,
   generationProgress = 0,
   onRegenerateClick,
-  transcript: initialTranscript = ''  // Use initialTranscript to avoid naming conflict
+  transcript: initialTranscript = ''
 }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [showTranscript, setShowTranscript] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(true); // Show transcript by default
   const [transcript, setTranscript] = useState(initialTranscript);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -31,6 +31,10 @@ export function AudioPlayer({
   // Update transcript state when prop changes
   useEffect(() => {
     setTranscript(initialTranscript);
+    // Show transcript when it becomes available
+    if (initialTranscript) {
+      setShowTranscript(true);
+    }
   }, [initialTranscript]);
 
   useEffect(() => {
@@ -94,7 +98,7 @@ export function AudioPlayer({
           <Button
             variant="ghost"
             size="icon"
-            className="text-white/60 hover:bg-white/10 transition-colors duration-300"
+            className={`text-white/60 hover:bg-white/10 transition-colors duration-300 ${showTranscript ? 'bg-white/10' : ''}`}
             onClick={() => setShowTranscript(!showTranscript)}
           >
             <FileText className="h-4 w-4" />
@@ -116,7 +120,7 @@ export function AudioPlayer({
         </div>
       </div>
 
-      {showTranscript && (
+      {showTranscript && transcript && (
         <div className="mb-4">
           <textarea
             value={transcript}

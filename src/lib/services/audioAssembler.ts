@@ -1,123 +1,160 @@
-interface AssemblyProgress {
-  phase: 'downloading' | 'combining' | 'encoding';
-  progress: number;
-}
+import { AssemblyProgress } from './types';
 
 export class AudioAssembler {
   private onProgress: (progress: AssemblyProgress) => void;
+  private audioContext: AudioContext;
 
   constructor(onProgress: (progress: AssemblyProgress) => void) {
     this.onProgress = onProgress;
+    this.audioContext = new AudioContext();
   }
 
-  /**
-   * Combine multiple audio URLs into a single audio blob
-   */
   async combineAudioUrls(urls: string[]): Promise<Blob> {
     try {
-      // Step 1: Download all audio blobs
       this.onProgress({ phase: 'downloading', progress: 0 });
-      const audioBlobs = await this.downloadAudioFiles(urls);
-      this.onProgress({ phase: 'downloading', progress: 100 });
 
-      // Step 2: Convert blobs to array buffers
+      // Step 1: Download and decode all audio chunks
+      const audioBuffers = await Promise.all(
+        urls.map(async (url, index) => {
+          // Download chunk
+          const response = await fetch(url);
+          if (!response.ok) {
+            throw new Error(`Failed to download audio chunk ${index + 1}`);
+          }
+          const arrayBuffer = await response.arrayBuffer();
+          
+          // Decode audio data
+          const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+          
+          this.onProgress({ 
+            phase: 'downloading', 
+            progress: ((index + 1) / urls.length) * 100 
+          });
+          
+          return audioBuffer;
+        })
+      );
+
       this.onProgress({ phase: 'combining', progress: 0 });
-      const audioBuffers = await this.convertBlobsToArrayBuffers(audioBlobs);
-      this.onProgress({ phase: 'combining', progress: 50 });
 
-      // Step 3: Combine array buffers
-      const combinedBuffer = await this.concatenateAudioBuffers(audioBuffers);
-      this.onProgress({ phase: 'combining', progress: 100 });
+      // Step 2: Calculate total duration
+      const totalDuration = audioBuffers.reduce((acc, buffer) => acc + buffer.duration, 0);
+      
+      // Step 3: Create a buffer to hold all audio data
+      const combinedBuffer = this.audioContext.createBuffer(
+        audioBuffers[0].numberOfChannels,
+        this.audioContext.sampleRate * totalDuration,
+        this.audioContext.sampleRate
+      );
 
-      // Step 4: Create final blob
+      // Step 4: Copy audio data from each buffer
+      let offset = 0;
+      audioBuffers.forEach((buffer, index) => {
+        for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+          const channelData = buffer.getChannelData(channel);
+          combinedBuffer.copyToChannel(channelData, channel, offset);
+        }
+        offset += buffer.length;
+        
+        this.onProgress({ 
+          phase: 'combining', 
+          progress: ((index + 1) / audioBuffers.length) * 100 
+        });
+      });
+
+      // Step 5: Convert to WAV format
       this.onProgress({ phase: 'encoding', progress: 0 });
-      const finalBlob = new Blob([combinedBuffer], { type: 'audio/mp3' });
+      const wavBlob = await this.audioBufferToWav(combinedBuffer);
+      
+      // Step 6: Convert WAV to MP3
+      const finalBlob = await this.wavToMp3(wavBlob);
       this.onProgress({ phase: 'encoding', progress: 100 });
+
+      // Verify the combined audio
+      const isValid = await this.verifyAudio(finalBlob);
+      if (!isValid) {
+        throw new Error('Audio verification failed');
+      }
+
+      console.log(`Combined ${urls.length} audio chunks successfully`);
+      console.log(`Total duration: ${totalDuration} seconds`);
 
       return finalBlob;
     } catch (error) {
-      console.error('Error combining audio:', error);
+      console.error('Error combining audio chunks:', error);
       throw error;
     }
   }
 
-  /**
-   * Download all audio files as blobs
-   */
-  private async downloadAudioFiles(urls: string[]): Promise<Blob[]> {
-    const downloads = urls.map(async (url, index) => {
-      try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Failed to download audio file ${index + 1}`);
-        }
-        const blob = await response.blob();
-        this.onProgress({
-          phase: 'downloading',
-          progress: ((index + 1) / urls.length) * 100
-        });
-        return blob;
-      } catch (error) {
-        console.error(`Error downloading audio file ${index + 1}:`, error);
-        throw error;
-      }
-    });
+  private async audioBufferToWav(buffer: AudioBuffer): Promise<Blob> {
+    const numberOfChannels = buffer.numberOfChannels;
+    const length = buffer.length * numberOfChannels * 2;
+    const outputBuffer = new ArrayBuffer(44 + length);
+    const view = new DataView(outputBuffer);
+    const channels = [];
+    let offset = 0;
+    let pos = 0;
 
-    return Promise.all(downloads);
-  }
-
-  /**
-   * Convert blobs to array buffers
-   */
-  private async convertBlobsToArrayBuffers(blobs: Blob[]): Promise<ArrayBuffer[]> {
-    const conversions = blobs.map(async (blob, index) => {
-      try {
-        const buffer = await blob.arrayBuffer();
-        this.onProgress({
-          phase: 'combining',
-          progress: ((index + 1) / blobs.length) * 25 + 25
-        });
-        return buffer;
-      } catch (error) {
-        console.error(`Error converting blob ${index + 1} to array buffer:`, error);
-        throw error;
-      }
-    });
-
-    return Promise.all(conversions);
-  }
-
-  /**
-   * Concatenate array buffers into a single buffer
-   */
-  private async concatenateAudioBuffers(buffers: ArrayBuffer[]): Promise<ArrayBuffer> {
-    try {
-      // Calculate total length
-      const totalLength = buffers.reduce((total, buffer) => total + buffer.byteLength, 0);
-      
-      // Create new buffer of combined length
-      const combinedBuffer = new ArrayBuffer(totalLength);
-      const combinedView = new Uint8Array(combinedBuffer);
-      
-      // Copy each buffer into the combined buffer
-      let offset = 0;
-      buffers.forEach((buffer, index) => {
-        const view = new Uint8Array(buffer);
-        combinedView.set(view, offset);
-        offset += buffer.byteLength;
-        
-        this.onProgress({
-          phase: 'combining',
-          progress: ((index + 1) / buffers.length) * 25 + 75
-        });
-      });
-      
-      return combinedBuffer;
-    } catch (error) {
-      console.error('Error concatenating audio buffers:', error);
-      throw error;
+    // Get channels
+    for (let i = 0; i < numberOfChannels; i++) {
+      channels.push(buffer.getChannelData(i));
     }
+
+    // Write WAV header
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + length, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numberOfChannels, true);
+    view.setUint32(24, buffer.sampleRate, true);
+    view.setUint32(28, buffer.sampleRate * numberOfChannels * 2, true);
+    view.setUint16(32, numberOfChannels * 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, length, true);
+
+    // Write audio data
+    for (let i = 0; i < buffer.length; i++) {
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const sample = Math.max(-1, Math.min(1, channels[channel][i]));
+        view.setInt16(44 + pos, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+        pos += 2;
+      }
+    }
+
+    return new Blob([outputBuffer], { type: 'audio/wav' });
+  }
+
+  private async wavToMp3(wavBlob: Blob): Promise<Blob> {
+    // For now, return the WAV blob as MP3 conversion requires additional libraries
+    // In a production environment, you would use a proper MP3 encoder here
+    return new Blob([wavBlob], { type: 'audio/mp3' });
+  }
+
+  private async verifyAudio(blob: Blob): Promise<boolean> {
+    return new Promise((resolve) => {
+      const audio = new Audio();
+      audio.src = URL.createObjectURL(blob);
+      
+      audio.onloadedmetadata = () => {
+        console.log('Combined audio duration:', audio.duration);
+        URL.revokeObjectURL(audio.src);
+        resolve(true);
+      };
+      
+      audio.onerror = () => {
+        console.error('Audio verification failed');
+        URL.revokeObjectURL(audio.src);
+        resolve(false);
+      };
+    });
   }
 }
 
-export type { AssemblyProgress };
+function writeString(view: DataView, offset: number, string: string) {
+  for (let i = 0; i < string.length; i++) {
+    view.setUint8(offset + i, string.charCodeAt(i));
+  }
+}

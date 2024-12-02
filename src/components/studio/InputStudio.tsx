@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
-import { Upload, ChevronDown, ChevronUp, X, Clock, FileText, Star, Volume2 } from 'lucide-react';
+import { Upload, ChevronDown, ChevronUp, X, Clock, FileText, Star, Volume2, Loader2 } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
@@ -11,6 +11,15 @@ import { PlayHTWebSocket } from '../../lib/services/playhtWebSocket';
 
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
+
+// Generation phases
+const PHASES = {
+  CONTEXT_ADJUSTMENT: 'context_adjustment',
+  GENERATING_AUDIO: 'generating_audio',
+  COMPLETE: 'complete'
+} as const;
+
+type Phase = typeof PHASES[keyof typeof PHASES];
 
 const audiences = [
   {
@@ -49,10 +58,10 @@ export function InputStudio() {
   const [isLibraryMode, setIsLibraryMode] = useState(true);
   const [selectedVoice, setSelectedVoice] = useState<PlayHTVoice | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationPhase, setGenerationPhase] = useState<Phase | ''>('');
+  const [generationProgress, setGenerationProgress] = useState<number>(0);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
-  const [generationPhase, setGenerationPhase] = useState<string>('');
-  const [generationProgress, setGenerationProgress] = useState<number>(0);
   const [generatedAudio, setGeneratedAudio] = useState<{ url: string; title: string; transcript: string } | null>(null);
   const [currentTranscript, setCurrentTranscript] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,11 +136,7 @@ export function InputStudio() {
   };
 
   const handleVoiceSelect = (voice: PlayHTVoice) => {
-    console.log('Voice selected for generation:', {
-      id: voice.id,
-      name: voice.name,
-      gender: voice.gender
-    });
+    console.log('Using voice for generation:', voice);
     setSelectedVoice(voice);
   };
 
@@ -153,9 +158,8 @@ export function InputStudio() {
 
     setError('');
     setIsGenerating(true);
-    setGenerationPhase('Generating transcript...');
+    setGenerationPhase(PHASES.CONTEXT_ADJUSTMENT);
     setGenerationProgress(0);
-    setGeneratedAudio(null);
 
     try {
       // Generate transcript with LLaMA
@@ -177,8 +181,8 @@ export function InputStudio() {
       setEstimatedDuration(result.estimatedDuration);
       setTotalWordCount(result.fullText.split(/\s+/).length);
 
-      // Initialize WebSocket for audio generation
-      setGenerationPhase('Generating audio...');
+      // Switch to audio generation phase
+      setGenerationPhase(PHASES.GENERATING_AUDIO);
       
       // Get WebSocket instance
       webSocketRef.current = PlayHTWebSocket.getInstance(
@@ -186,9 +190,6 @@ export function InputStudio() {
         env.playht.userId,
         (progress) => {
           setGenerationProgress(progress.progress);
-          if (progress.status) {
-            setGenerationPhase(progress.status);
-          }
         },
         (audioUrl) => {
           console.log('Audio generation complete:', audioUrl);
@@ -197,9 +198,8 @@ export function InputStudio() {
             title: titleResult.title,
             transcript: result.fullText
           });
+          setGenerationPhase(PHASES.COMPLETE);
           setIsGenerating(false);
-          setGenerationPhase('');
-          setGenerationProgress(0);
         },
         (error) => {
           console.error('WebSocket error:', error);
@@ -231,14 +231,15 @@ export function InputStudio() {
 
   return (
     <div className="space-y-6">
-      {/* Generated Audio Player */}
-      {generatedAudio && (
+      {/* Generated Audio Player - Show during generation and after completion */}
+      {(isGenerating || generatedAudio) && (
         <AudioPlayer
-          title={generatedAudio.title}
-          audioUrl={generatedAudio.url}
-          transcript={generatedAudio.transcript}
+          title={generatedAudio?.title || 'Generating Audio...'}
+          audioUrl={generatedAudio?.url}
+          transcript={generatedAudio?.transcript}
           isGenerating={isGenerating}
           generationProgress={generationProgress}
+          generationPhase={generationPhase as 'context_adjustment' | 'generating_audio' | 'complete'}
         />
       )}
 
@@ -391,14 +392,7 @@ export function InputStudio() {
           className="w-full bg-[#4c0562] hover:bg-[#63248D] text-lg font-normal h-12 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ boxShadow: '0 4px 12px #00000030' }}
         >
-          {isGenerating ? (
-            <div className="flex items-center gap-2">
-              <span>{generationPhase}</span>
-              <span>{Math.round(generationProgress)}%</span>
-            </div>
-          ) : (
-            'Generate audio'
-          )}
+          Generate audio
         </Button>
       </div>
     </div>

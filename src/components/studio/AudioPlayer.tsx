@@ -7,6 +7,7 @@ interface AudioPlayerProps {
   audioUrl?: string;
   isGenerating?: boolean;
   generationProgress?: number;
+  generationPhase?: 'context_adjustment' | 'generating_audio' | 'complete';
   onRegenerateClick?: (text: string) => Promise<void>;
   transcript?: string;
 }
@@ -16,6 +17,7 @@ export function AudioPlayer({
   audioUrl,
   isGenerating = false,
   generationProgress = 0,
+  generationPhase = 'complete',
   onRegenerateClick,
   transcript: initialTranscript = ''
 }: AudioPlayerProps) {
@@ -91,6 +93,39 @@ export function AudioPlayer({
   // Format title for display
   const displayTitle = title.length > 50 ? title.substring(0, 47) + '...' : title;
 
+  const renderGenerationStatus = () => {
+    if (generationPhase === 'context_adjustment') {
+      return (
+        <div className="flex items-center gap-2 mb-4">
+          <Loader2 className="h-4 w-4 text-primary animate-spin" />
+          <span className="text-white/60">Context adjustment...</span>
+        </div>
+      );
+    }
+
+    if (generationPhase === 'generating_audio') {
+      return (
+        <div className="flex flex-col space-y-2 w-full mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-4 w-4 text-primary animate-spin" />
+              <span className="text-white/60">Generating audio...</span>
+            </div>
+            <span className="text-white/60">{Math.round(generationProgress)}%</span>
+          </div>
+          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${generationProgress}%` }}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
       <div className="flex justify-between items-center mb-4">
@@ -125,7 +160,6 @@ export function AudioPlayer({
                 link.download = `${title}.mp3`;
                 link.click();
               }}
-              disabled={isGenerating}
               title="Download Audio"
             >
               <Download className="h-4 w-4" />
@@ -133,6 +167,9 @@ export function AudioPlayer({
           )}
         </div>
       </div>
+
+      {/* Generation Status */}
+      {isGenerating && renderGenerationStatus()}
 
       {/* Show transcript if available and toggled */}
       {transcript && showTranscript && (
@@ -152,60 +189,38 @@ export function AudioPlayer({
         </div>
       )}
 
-      {isGenerating ? (
-        <div className="flex flex-col space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 text-primary animate-spin" />
-              <span className="text-white/60">Generating audio...</span>
-            </div>
-            <span className="text-white/60">{Math.round(generationProgress)}%</span>
-          </div>
-          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${generationProgress}%` }}
-            />
+      <audio ref={audioRef} src={audioUrl} />
+
+      <div className="flex flex-col gap-2">
+        <div
+          ref={progressBarRef}
+          className="h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer"
+          onClick={handleProgressClick}
+        >
+          <div
+            className="h-full bg-primary transition-all duration-100"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white/60 hover:bg-white/10 transition-colors duration-300"
+              onClick={handlePlayPause}
+              disabled={!audioUrl}
+              title={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+            </Button>
+            <span className="text-sm text-white/60">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
           </div>
         </div>
-      ) : (
-        <>
-          {audioUrl && (
-            <audio ref={audioRef} src={audioUrl} />
-          )}
-
-          <div className="flex flex-col gap-2">
-            <div
-              ref={progressBarRef}
-              className="h-1 bg-white/10 rounded-full overflow-hidden cursor-pointer"
-              onClick={handleProgressClick}
-            >
-              <div
-                className="h-full bg-primary transition-all duration-100"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-white/60 hover:bg-white/10 transition-colors duration-300"
-                  onClick={handlePlayPause}
-                  disabled={!audioUrl}
-                  title={isPlaying ? 'Pause' : 'Play'}
-                >
-                  {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                </Button>
-                <span className="text-sm text-white/60">
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      </div>
     </div>
   );
 }

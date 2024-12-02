@@ -79,6 +79,10 @@ app.post('/api/websocket-auth', async (req, res) => {
 // Get available voices
 app.get('/api/voices', async (req, res) => {
   try {
+    if (!apiKey || !userId) {
+      throw new Error('Missing API credentials');
+    }
+
     console.log('Fetching voices from PlayHT API...');
     const response = await fetch('https://api.play.ht/api/v2/voices', {
       method: 'GET',
@@ -90,14 +94,22 @@ app.get('/api/voices', async (req, res) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch voices: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('PlayHT API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Failed to fetch voices: ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log(`Fetched ${data.voices?.length || 0} voices`);
-
+    
+    // Handle both array and object response formats
+    const voiceArray = Array.isArray(data) ? data : (data.voices || []);
+    
     // Map the voices to match our client's expected format
-    const voices = data.voices.map(voice => ({
+    const voices = voiceArray.map(voice => ({
       id: voice.id,
       name: voice.name,
       sample: voice.preview_url || voice.sample_url,
@@ -114,9 +126,7 @@ app.get('/api/voices', async (req, res) => {
       voiceEngine: voice.is_cloned ? 'PlayHT2.0' : 'Play3.0-mini'
     }));
 
-    // Log a few examples to verify the format
-    console.log('Example voices:', voices.slice(0, 3));
-
+    console.log(`Processed ${voices.length} voices`);
     res.json({ voices });
   } catch (error) {
     console.error('Error fetching voices:', error);
@@ -130,6 +140,10 @@ app.get('/api/voices', async (req, res) => {
 // Get cloned voices
 app.get('/api/cloned-voices', async (req, res) => {
   try {
+    if (!apiKey || !userId) {
+      throw new Error('Missing API credentials');
+    }
+
     console.log('Fetching cloned voices from PlayHT API...');
     const response = await fetch('https://api.play.ht/api/v2/cloned-voices', {
       method: 'GET',
@@ -141,14 +155,22 @@ app.get('/api/cloned-voices', async (req, res) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to fetch cloned voices: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('PlayHT API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      });
+      throw new Error(`Failed to fetch cloned voices: ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
-    console.log(`Fetched ${data.voices?.length || 0} cloned voices`);
-
+    
+    // Handle both array and object response formats
+    const voiceArray = Array.isArray(data) ? data : (data.voices || []);
+    
     // Map the voices to match our client's expected format
-    const voices = data.voices.map(voice => ({
+    const voices = voiceArray.map(voice => ({
       id: voice.id,
       name: voice.name,
       sample: voice.preview_url || voice.sample_url,
@@ -165,9 +187,7 @@ app.get('/api/cloned-voices', async (req, res) => {
       voiceEngine: 'PlayHT2.0'
     }));
 
-    // Log a few examples to verify the format
-    console.log('Example voices:', voices.slice(0, 3));
-
+    console.log(`Processed ${voices.length} cloned voices`);
     res.json({ voices });
   } catch (error) {
     console.error('Error fetching cloned voices:', error);

@@ -45,12 +45,11 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       const voiceList = await playhtClient.getVoices();
       console.log(`Fetched ${voiceList.length} voices`);
 
-      // Ensure each voice has the correct ID format for Play3.0-mini
+      // Keep original voice IDs from PlayHT
       const processedVoices = voiceList.map(voice => ({
         ...voice,
-        id: voice.id.includes('s3://')
-          ? voice.id
-          : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`
+        // Don't modify the voice ID - use it as-is from PlayHT
+        id: voice.id
       }));
 
       setVoices(processedVoices);
@@ -76,12 +75,11 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       const clonedVoices = await playhtClient.getClonedVoices();
       console.log(`Fetched ${clonedVoices.length} cloned voices`);
 
-      // Ensure each voice has the correct ID format for Play3.0-mini
+      // Keep original voice IDs for cloned voices
       const processedVoices = clonedVoices.map(voice => ({
         ...voice,
-        id: voice.id.includes('s3://')
-          ? voice.id
-          : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`
+        // Don't modify the voice ID - use it as-is from PlayHT
+        id: voice.id
       }));
 
       setVoices(processedVoices);

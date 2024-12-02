@@ -90,36 +90,22 @@ app.get('/api/voices', async (req, res) => {
     const allVoices = await PlayHT.listVoices();
     console.log(`Fetched ${allVoices.length} voices from PlayHT`);
 
-    // Map voices to a consistent format with full voice ID path
-    const voices = allVoices.map(voice => {
-      // Keep original voice ID if it's already in s3:// format
-      const voiceId = voice.id.includes('s3://')
-        ? voice.id
-        : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`;
-
-      // Log voice details for debugging
-      console.log('Processing voice:', {
-        name: voice.name,
-        originalId: voice.id,
-        mappedId: voiceId
-      });
-
-      return {
-        id: voiceId,
-        name: voice.name,
-        sample: voice.previewUrl || voice.sample,
-        accent: voice.accent || '',
-        age: voice.age || '',
-        gender: voice.gender || '',
-        language: voice.language || '',
-        language_code: voice.languageCode || '',
-        loudness: voice.loudness || '',
-        style: voice.style || '',
-        tempo: voice.tempo || '',
-        texture: voice.texture || '',
-        is_cloned: voice.isCloned || false
-      };
-    });
+    // Map voices to a consistent format without modifying IDs
+    const voices = allVoices.map(voice => ({
+      id: voice.id, // Keep original voice ID
+      name: voice.name,
+      sample: voice.previewUrl || voice.sample,
+      accent: voice.accent || '',
+      age: voice.age || '',
+      gender: voice.gender || '',
+      language: voice.language || '',
+      language_code: voice.languageCode || '',
+      loudness: voice.loudness || '',
+      style: voice.style || '',
+      tempo: voice.tempo || '',
+      texture: voice.texture || '',
+      is_cloned: voice.isCloned || false
+    }));
 
     console.log(`Mapped ${voices.length} voices`);
     // Log a few examples to verify the format
@@ -147,12 +133,10 @@ app.get('/api/cloned-voices', async (req, res) => {
     const voices = await PlayHT.listClonedVoices();
     console.log(`Fetched ${voices.length} cloned voices`);
 
-    // Map cloned voices to include full voice ID path
+    // Map cloned voices without modifying IDs
     const mappedVoices = voices.map(voice => ({
       ...voice,
-      id: voice.id.includes('s3://')
-        ? voice.id
-        : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`
+      id: voice.id // Keep original voice ID
     }));
 
     res.json({ voices: mappedVoices });

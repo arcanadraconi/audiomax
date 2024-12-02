@@ -127,7 +127,11 @@ export function InputStudio() {
   };
 
   const handleVoiceSelect = (voice: PlayHTVoice) => {
-    console.log('Using voice for generation:', voice);
+    console.log('Voice selected for generation:', {
+      id: voice.id,
+      name: voice.name,
+      gender: voice.gender
+    });
     setSelectedVoice(voice);
   };
 
@@ -207,7 +211,11 @@ export function InputStudio() {
       );
 
       // Generate speech using WebSocket
-      console.log('Starting WebSocket audio generation with voice:', selectedVoice.id);
+      console.log('Starting WebSocket audio generation with voice:', {
+        id: selectedVoice.id,
+        name: selectedVoice.name,
+        gender: selectedVoice.gender
+      });
       await webSocketRef.current.generateSpeech(result.fullText, selectedVoice.id);
 
     } catch (err) {
@@ -223,6 +231,17 @@ export function InputStudio() {
 
   return (
     <div className="space-y-6">
+      {/* Generated Audio Player */}
+      {generatedAudio && (
+        <AudioPlayer
+          title={generatedAudio.title}
+          audioUrl={generatedAudio.url}
+          transcript={generatedAudio.transcript}
+          isGenerating={isGenerating}
+          generationProgress={generationProgress}
+        />
+      )}
+
       {/* Upload Area */}
       <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
         <h2 className="text-3xl font-medium mb-4 text-[#8ab9bd]/80">Audiomax Studio</h2>
@@ -382,17 +401,6 @@ export function InputStudio() {
           )}
         </Button>
       </div>
-
-      {/* Audio Player */}
-      {generatedAudio && (
-        <AudioPlayer
-          title={generatedAudio.title}
-          audioUrl={generatedAudio.url}
-          transcript={generatedAudio.transcript}
-          isGenerating={isGenerating}
-          generationProgress={generationProgress}
-        />
-      )}
     </div>
   );
 }

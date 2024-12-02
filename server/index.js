@@ -1,25 +1,18 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import PlayHT from 'playht';
 import fetch from 'node-fetch';
 
 const app = express();
 const port = process.env.PORT || 3001;
 
-// Initialize PlayHT with credentials
+// Initialize credentials
 const apiKey = process.env.PLAYHT_SECRET_KEY;
 const userId = process.env.PLAYHT_USER_ID;
 
-console.log('Initializing PlayHT with:', {
+console.log('Initializing with:', {
   apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'missing',
   userId: userId ? `${userId.substring(0, 4)}...` : 'missing'
-});
-
-// Initialize PlayHT only for voice listing
-PlayHT.init({
-  apiKey: apiKey,
-  userId: userId
 });
 
 // CORS configuration
@@ -86,25 +79,39 @@ app.post('/api/websocket-auth', async (req, res) => {
 // Get available voices
 app.get('/api/voices', async (req, res) => {
   try {
-    console.log('Fetching voices from PlayHT...');
-    const allVoices = await PlayHT.listVoices();
-    console.log(`Fetched ${allVoices.length} voices`);
+    console.log('Fetching voices from PlayHT API...');
+    const response = await fetch('https://api.play.ht/api/v2/voices', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'X-User-ID': userId,
+        'Content-Type': 'application/json'
+      }
+    });
 
-    // Return raw voices without any ID modification
-    const voices = allVoices.map(voice => ({
-      id: voice.id, // Keep original voice ID
+    if (!response.ok) {
+      throw new Error(`Failed to fetch voices: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`Fetched ${data.voices?.length || 0} voices`);
+
+    // Map the voices to match our client's expected format
+    const voices = data.voices.map(voice => ({
+      id: voice.id,
       name: voice.name,
-      sample: voice.previewUrl || voice.sample,
+      sample: voice.preview_url || voice.sample_url,
       accent: voice.accent || '',
       age: voice.age || '',
       gender: voice.gender || '',
       language: voice.language || '',
-      language_code: voice.languageCode || '',
+      language_code: voice.language_code || '',
       loudness: voice.loudness || '',
       style: voice.style || '',
       tempo: voice.tempo || '',
       texture: voice.texture || '',
-      is_cloned: voice.isCloned || false
+      is_cloned: voice.is_cloned || false,
+      voiceEngine: voice.is_cloned ? 'PlayHT2.0' : 'Play3.0-mini'
     }));
 
     // Log a few examples to verify the format
@@ -123,20 +130,45 @@ app.get('/api/voices', async (req, res) => {
 // Get cloned voices
 app.get('/api/cloned-voices', async (req, res) => {
   try {
-    console.log('Fetching cloned voices...');
-    const voices = await PlayHT.listClonedVoices();
-    console.log(`Fetched ${voices.length} cloned voices`);
+    console.log('Fetching cloned voices from PlayHT API...');
+    const response = await fetch('https://api.play.ht/api/v2/cloned-voices', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'X-User-ID': userId,
+        'Content-Type': 'application/json'
+      }
+    });
 
-    // Return raw cloned voices without any ID modification
-    const mappedVoices = voices.map(voice => ({
-      ...voice,
-      id: voice.id // Keep original voice ID
+    if (!response.ok) {
+      throw new Error(`Failed to fetch cloned voices: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`Fetched ${data.voices?.length || 0} cloned voices`);
+
+    // Map the voices to match our client's expected format
+    const voices = data.voices.map(voice => ({
+      id: voice.id,
+      name: voice.name,
+      sample: voice.preview_url || voice.sample_url,
+      accent: voice.accent || '',
+      age: voice.age || '',
+      gender: voice.gender || '',
+      language: voice.language || '',
+      language_code: voice.language_code || '',
+      loudness: voice.loudness || '',
+      style: voice.style || '',
+      tempo: voice.tempo || '',
+      texture: voice.texture || '',
+      is_cloned: true,
+      voiceEngine: 'PlayHT2.0'
     }));
 
     // Log a few examples to verify the format
-    console.log('Example cloned voices:', mappedVoices.slice(0, 3));
+    console.log('Example voices:', voices.slice(0, 3));
 
-    res.json({ voices: mappedVoices });
+    res.json({ voices });
   } catch (error) {
     console.error('Error fetching cloned voices:', error);
     res.status(500).json({ 

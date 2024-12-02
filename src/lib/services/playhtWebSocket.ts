@@ -128,7 +128,7 @@ export class PlayHTWebSocket {
               const message = JSON.parse(event.data);
               console.log('WebSocket response:', message);
 
-              if (message.status === 'completed') {
+              if ('request_id' in message) {
                 console.log('Audio generation completed with voice:', this.currentVoiceId);
                 this.finalizeAudio();
               }
@@ -212,15 +212,12 @@ export class PlayHTWebSocket {
       this.currentVoiceId = voiceId;
       console.log('🎙️ Raw voice ID received:', voiceId);
 
-      // Create the message with exact voice ID
+      // Create the message with exact voice parameter name as per documentation
       const message = {
         text,
-        voice_id: voiceId, // Use raw voice ID without modification
-        model: 'Play3.0-mini',
-        quality: 'premium',
+        voice: voiceId, // Changed from voice_id to voice as per documentation
         output_format: 'mp3',
-        speed: 1.0,
-        sample_rate: 24000
+        temperature: 0.7 // Added as per documentation example
       };
 
       // Log the full request for debugging

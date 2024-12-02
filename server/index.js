@@ -2,7 +2,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import PlayHT from 'playht';
-import { splitTextIntoChunks } from './utils.js';
 import fetch from 'node-fetch';
 
 const app = express();
@@ -17,10 +16,10 @@ console.log('Initializing PlayHT with:', {
   userId: userId ? `${userId.substring(0, 4)}...` : 'missing'
 });
 
+// Initialize PlayHT only for voice listing
 PlayHT.init({
   apiKey: apiKey,
-  userId: userId,
-  defaultVoiceEngine: 'Play3.0-mini'
+  userId: userId
 });
 
 // CORS configuration
@@ -93,7 +92,7 @@ app.get('/api/voices', async (req, res) => {
 
     // Map voices to a consistent format with full voice ID path
     const voices = allVoices.map(voice => {
-      // Construct the full voice ID path for Play3.0-mini voices
+      // Keep original voice ID if it's already in s3:// format
       const voiceId = voice.id.includes('s3://')
         ? voice.id
         : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`;
@@ -102,8 +101,7 @@ app.get('/api/voices', async (req, res) => {
       console.log('Processing voice:', {
         name: voice.name,
         originalId: voice.id,
-        mappedId: voiceId,
-        engine: voice.voiceEngine || 'Play3.0-mini'
+        mappedId: voiceId
       });
 
       return {
@@ -119,8 +117,7 @@ app.get('/api/voices', async (req, res) => {
         style: voice.style || '',
         tempo: voice.tempo || '',
         texture: voice.texture || '',
-        is_cloned: voice.isCloned || false,
-        voiceEngine: 'Play3.0-mini' // Always use Play3.0-mini for better quality
+        is_cloned: voice.isCloned || false
       };
     });
 
@@ -143,28 +140,6 @@ app.get('/api/voices', async (req, res) => {
   }
 });
 
-// Clone voice
-app.post('/api/clone', async (req, res) => {
-  try {
-    const { name, files } = req.body;
-
-    if (!name || !files) {
-      return res.status(400).json({ error: 'Missing required parameters' });
-    }
-
-    console.log('Cloning voice:', { name });
-    const response = await PlayHT.cloneVoice({ name, files });
-    console.log('Voice cloned:', response);
-    res.json(response);
-  } catch (error) {
-    console.error('Error cloning voice:', error);
-    res.status(500).json({ 
-      error: error.message,
-      details: error.response?.data || error.stack
-    });
-  }
-});
-
 // Get cloned voices
 app.get('/api/cloned-voices', async (req, res) => {
   try {
@@ -177,8 +152,7 @@ app.get('/api/cloned-voices', async (req, res) => {
       ...voice,
       id: voice.id.includes('s3://')
         ? voice.id
-        : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`,
-      voiceEngine: 'Play3.0-mini' // Always use Play3.0-mini for better quality
+        : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`
     }));
 
     res.json({ voices: mappedVoices });

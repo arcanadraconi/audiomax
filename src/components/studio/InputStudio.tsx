@@ -5,7 +5,7 @@ import { VoiceSearch } from './VoiceSearch';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
-import { playhtClient, Voice as PlayHTVoice } from '../../lib/playht';
+import { Voice as PlayHTVoice } from '../../lib/playht';
 import { AudioPlayer } from './AudioPlayer';
 import { PlayHTWebSocket } from '../../lib/services/playhtWebSocket';
 
@@ -127,7 +127,7 @@ export function InputStudio() {
   };
 
   const handleVoiceSelect = (voice: PlayHTVoice) => {
-    console.log('Selected voice:', voice);
+    console.log('Using voice for generation:', voice);
     setSelectedVoice(voice);
   };
 
@@ -206,7 +206,8 @@ export function InputStudio() {
         }
       );
 
-      // Generate speech
+      // Generate speech using WebSocket
+      console.log('Starting WebSocket audio generation with voice:', selectedVoice.id);
       await webSocketRef.current.generateSpeech(result.fullText, selectedVoice.id);
 
     } catch (err) {

@@ -113,16 +113,12 @@ class PlayHTClient {
         });
       }
 
-      // Ensure voice ID has the correct format for Play3.0-mini
-      const voiceId = options.voice.includes('s3://')
-        ? options.voice
-        : `s3://voice-cloning-zero-shot/${options.voice}/manifest.json`;
-
-      console.log('Using voice ID:', voiceId);
+      // Use voice ID directly without modification
+      console.log('Using voice ID:', options.voice);
 
       // Generate audio for all chunks in parallel
       console.log('Starting parallel audio generation');
-      const audioUrls = await this.generator.generateParallel(chunks, voiceId);
+      const audioUrls = await this.generator.generateParallel(chunks, options.voice);
       console.log(`Generated ${audioUrls.length} audio chunks`);
 
       // Combine audio chunks if needed

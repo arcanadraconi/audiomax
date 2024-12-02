@@ -1,33 +1,21 @@
-interface WebSocketAuthResponse {
-  websocket_url: string;
-}
-
-interface WebSocketMessage {
-  text: string;
-  voice_id: string;
-  model: 'Play3.0-mini';
-  quality: 'premium';
-  output_format: 'mp3';
-  speed: number;
-}
-
 interface WebSocketProgress {
   progress: number;
-  status: string;
+  status?: string;
 }
 
 export class PlayHTWebSocket {
   private ws: WebSocket | null = null;
-  private apiKey: string;
-  private userId: string;
+  private messageQueue: any[] = [];
   private onProgress: (progress: WebSocketProgress) => void;
   private onComplete: (audioUrl: string) => void;
   private onError: (error: string) => void;
-  private audioChunks: Uint8Array[] = [];
-  private baseUrl = 'http://localhost:3001/api';
-  private pendingMessage: WebSocketMessage | null = null;
-  private jobId: string | null = null;
-  private currentVoiceId: string | null = null;
+  private apiKey: string;
+  private userId: string;
+  private chunks: Uint8Array[] = [];
+  private isConnecting: boolean = false;
+  private reconnectAttempts: number = 0;
+  private maxReconnectAttempts: number = 3;
+  private reconnectDelay: number = 2000; // 2 seconds
 
   constructor(
     apiKey: string,
@@ -46,160 +34,166 @@ export class PlayHTWebSocket {
   private async getWebSocketUrl(): Promise<string> {
     try {
       console.log('Getting WebSocket auth from server...');
-      const response = await fetch(`${this.baseUrl}/websocket-auth`, {
+      const response = await fetch('http://localhost:3001/api/websocket-auth', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-          'X-User-ID': this.userId
+          'Content-Type': 'application/json'
         }
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`WebSocket auth failed: ${response.statusText} - ${errorText}`);
+        throw new Error(`WebSocket auth failed: ${response.statusText}`);
       }
 
-      const data: WebSocketAuthResponse = await response.json();
-      console.log('WebSocket URL received:', data.websocket_url);
-      return data.websocket_url;
+      const data = await response.json();
+      console.log('WebSocket URL received:', data.url);
+      return data.url;
     } catch (error) {
-      console.error('Failed to get WebSocket URL:', error);
-      throw new Error(`Failed to get WebSocket URL: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Error getting WebSocket URL:', error);
+      throw error;
     }
   }
 
-  async connect(): Promise<void> {
-    try {
-      console.log('Connecting to WebSocket...');
-      const wsUrl = await this.getWebSocketUrl();
-      this.ws = new WebSocket(wsUrl);
+  private async connect(): Promise<void> {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      return;
+    }
 
-      return new Promise((resolve, reject) => {
-        if (!this.ws) {
-          reject(new Error('WebSocket not initialized'));
-          return;
+    if (this.isConnecting) {
+      return;
+    }
+
+    this.isConnecting = true;
+    console.log('Connecting to WebSocket...');
+
+    try {
+      const url = await this.getWebSocketUrl();
+      this.ws = new WebSocket(url);
+
+      this.ws.onopen = () => {
+        console.log('WebSocket connected successfully');
+        this.isConnecting = false;
+        this.reconnectAttempts = 0;
+
+        // Send any queued messages
+        while (this.messageQueue.length > 0) {
+          const message = this.messageQueue.shift();
+          console.log('Sending pending message:', message);
+          this.ws?.send(JSON.stringify(message));
+        }
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          if (event.data instanceof Blob) {
+            // Handle binary audio data
+            const reader = new FileReader();
+            reader.onload = () => {
+              const arrayBuffer = reader.result as ArrayBuffer;
+              const chunk = new Uint8Array(arrayBuffer);
+              this.chunks.push(chunk);
+              console.log('Received audio chunk, size:', chunk.length);
+            };
+            reader.readAsArrayBuffer(event.data);
+          } else {
+            // Handle JSON messages
+            const message = JSON.parse(event.data);
+            console.log('WebSocket message:', message);
+
+            if (message.job_id) {
+              console.log('Job ID received:', message.job_id);
+            }
+
+            if (message.progress !== undefined) {
+              this.onProgress({
+                progress: message.progress,
+                status: message.status
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Error processing WebSocket message:', error);
+        }
+      };
+
+      this.ws.onclose = () => {
+        console.log('WebSocket closed');
+        this.isConnecting = false;
+
+        // Create audio blob and URL
+        if (this.chunks.length > 0) {
+          const totalLength = this.chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+          const combinedArray = new Uint8Array(totalLength);
+          let offset = 0;
+          for (const chunk of this.chunks) {
+            combinedArray.set(chunk, offset);
+            offset += chunk.length;
+          }
+          const blob = new Blob([combinedArray], { type: 'audio/mp3' });
+          const url = URL.createObjectURL(blob);
+          console.log('Audio processing complete, URL created');
+          this.onComplete(url);
         }
 
-        this.ws.onopen = () => {
-          console.log('WebSocket connected successfully');
-          // Send pending message if exists
-          if (this.pendingMessage && this.ws?.readyState === WebSocket.OPEN) {
-            console.log('Sending pending message:', this.pendingMessage);
-            this.ws.send(JSON.stringify(this.pendingMessage));
-            this.pendingMessage = null;
-          }
-          resolve();
-        };
+        // Reset chunks array
+        this.chunks = [];
+      };
 
-        this.ws.onmessage = async (event) => {
-          try {
-            if (event.data instanceof Blob) {
-              // Handle binary audio data
-              const buffer = await event.data.arrayBuffer();
-              this.audioChunks.push(new Uint8Array(buffer));
-              console.log('Received audio chunk, size:', buffer.byteLength);
-              return;
-            }
+      this.ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.isConnecting = false;
 
-            // Handle JSON messages
-            const data = JSON.parse(event.data);
-            console.log('WebSocket message:', data);
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          console.log(`Reconnecting attempt ${this.reconnectAttempts}...`);
+          setTimeout(() => this.connect(), this.reconnectDelay);
+        } else {
+          this.onError('WebSocket connection failed after multiple attempts');
+        }
+      };
 
-            if (data.job_id && !this.jobId) {
-              this.jobId = data.job_id;
-              console.log('Job ID received:', this.jobId);
-            }
-
-            if (data.error) {
-              this.onError(data.error.message || 'Unknown error');
-              return;
-            }
-
-            if (data.progress !== undefined) {
-              this.onProgress({
-                progress: data.progress,
-                status: data.status || 'processing'
-              });
-              return;
-            }
-
-            if (data.audio) {
-              // Convert base64 audio to blob URL
-              const audioData = atob(data.audio);
-              const arrayBuffer = new ArrayBuffer(audioData.length);
-              const uint8Array = new Uint8Array(arrayBuffer);
-              for (let i = 0; i < audioData.length; i++) {
-                uint8Array[i] = audioData.charCodeAt(i);
-              }
-              const blob = new Blob([arrayBuffer], { type: 'audio/mp3' });
-              const url = URL.createObjectURL(blob);
-              this.onComplete(url);
-              return;
-            }
-
-          } catch (e) {
-            console.error('Error handling WebSocket message:', e);
-          }
-        };
-
-        this.ws.onclose = () => {
-          console.log('WebSocket closed');
-          if (this.audioChunks.length > 0) {
-            // Combine all audio chunks into a single blob
-            const blob = new Blob(this.audioChunks, { type: 'audio/mp3' });
-            const url = URL.createObjectURL(blob);
-            console.log('Audio processing complete, URL created');
-            this.onComplete(url);
-            this.audioChunks = [];
-          }
-        };
-
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          reject(new Error('WebSocket connection error'));
-        };
-      });
     } catch (error) {
-      console.error('WebSocket connection failed:', error);
-      throw new Error(`WebSocket connection failed: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Error connecting to WebSocket:', error);
+      this.isConnecting = false;
+      this.onError('Failed to connect to WebSocket');
     }
   }
 
-  async generateSpeech(text: string, voice: string): Promise<void> {
-    // Store the current voice ID
-    this.currentVoiceId = voice;
+  async generateSpeech(text: string, voiceId: string): Promise<void> {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.log('WebSocket not connected, connecting...');
+      await this.connect();
+    }
 
-    const message: WebSocketMessage = {
+    const message = {
       text,
-      voice_id: voice,
+      voice_id: voiceId,
       model: 'Play3.0-mini',
       quality: 'premium',
       output_format: 'mp3',
-      speed: 1.0
+      speed: 1.0,
+      sample_rate: 24000
     };
 
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      console.log('WebSocket not connected, connecting...');
-      this.pendingMessage = message;
-      await this.connect();
-    } else {
+    if (this.ws?.readyState === WebSocket.OPEN) {
       console.log('Sending generation request:', message);
       this.ws.send(JSON.stringify(message));
+    } else {
+      console.log('Queueing message for later');
+      this.messageQueue.push(message);
     }
   }
 
-  disconnect(): void {
-    console.log('Disconnecting WebSocket');
+  disconnect() {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
-    this.currentVoiceId = null;
-    this.jobId = null;
-    this.audioChunks = [];
-    this.pendingMessage = null;
+    this.messageQueue = [];
+    this.chunks = [];
+    this.isConnecting = false;
+    this.reconnectAttempts = 0;
   }
 }
 
-export type { WebSocketProgress, WebSocketMessage };
+export type { WebSocketProgress };

@@ -94,9 +94,17 @@ app.get('/api/voices', async (req, res) => {
     // Map voices to a consistent format with full voice ID path
     const voices = allVoices.map(voice => {
       // Construct the full voice ID path for Play3.0-mini voices
-      const voiceId = voice.voiceEngine === 'Play3.0-mini'
-        ? `s3://voice-cloning-zero-shot/${voice.id}/manifest.json`
-        : voice.id;
+      const voiceId = voice.id.includes('s3://')
+        ? voice.id
+        : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`;
+
+      // Log voice details for debugging
+      console.log('Processing voice:', {
+        name: voice.name,
+        originalId: voice.id,
+        mappedId: voiceId,
+        engine: voice.voiceEngine || 'Play3.0-mini'
+      });
 
       return {
         id: voiceId,
@@ -112,7 +120,7 @@ app.get('/api/voices', async (req, res) => {
         tempo: voice.tempo || '',
         texture: voice.texture || '',
         is_cloned: voice.isCloned || false,
-        voiceEngine: voice.voiceEngine || 'PlayHT2.0'
+        voiceEngine: 'Play3.0-mini' // Always use Play3.0-mini for better quality
       };
     });
 
@@ -163,7 +171,17 @@ app.get('/api/cloned-voices', async (req, res) => {
     console.log('Fetching cloned voices...');
     const voices = await PlayHT.listClonedVoices();
     console.log(`Fetched ${voices.length} cloned voices`);
-    res.json({ voices });
+
+    // Map cloned voices to include full voice ID path
+    const mappedVoices = voices.map(voice => ({
+      ...voice,
+      id: voice.id.includes('s3://')
+        ? voice.id
+        : `s3://voice-cloning-zero-shot/${voice.id}/${voice.name.toLowerCase().replace(/[^a-z0-9]/g, '')}saad/manifest.json`,
+      voiceEngine: 'Play3.0-mini' // Always use Play3.0-mini for better quality
+    }));
+
+    res.json({ voices: mappedVoices });
   } catch (error) {
     console.error('Error fetching cloned voices:', error);
     res.status(500).json({ 

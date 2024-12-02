@@ -90,31 +90,37 @@ app.get('/api/voices', async (req, res) => {
     const allVoices = await PlayHT.listVoices();
     console.log(`Fetched ${allVoices.length} voices from PlayHT`);
 
-    // Map voices to a consistent format without modifying IDs
-    const voices = allVoices.map(voice => ({
-      id: voice.id, // Keep original voice ID
-      name: voice.name,
-      sample: voice.previewUrl || voice.sample,
-      accent: voice.accent || '',
-      age: voice.age || '',
-      gender: voice.gender || '',
-      language: voice.language || '',
-      language_code: voice.languageCode || '',
-      loudness: voice.loudness || '',
-      style: voice.style || '',
-      tempo: voice.tempo || '',
-      texture: voice.texture || '',
-      is_cloned: voice.isCloned || false
-    }));
+    // Log raw response for debugging
+    console.log('Raw PlayHT response:', JSON.stringify(allVoices.slice(0, 3), null, 2));
 
-    console.log(`Mapped ${voices.length} voices`);
-    // Log a few examples to verify the format
-    if (voices.length > 0) {
-      console.log('Example voice IDs:');
-      voices.slice(0, 3).forEach(voice => {
-        console.log(`- ${voice.name}: ${voice.id}`);
+    // Map voices without modifying IDs
+    const voices = allVoices.map(voice => {
+      // Log each voice mapping for debugging
+      console.log('Processing voice:', {
+        name: voice.name,
+        id: voice.id,
+        gender: voice.gender
       });
-    }
+
+      return {
+        id: voice.id, // Keep original voice ID
+        name: voice.name,
+        sample: voice.previewUrl || voice.sample,
+        accent: voice.accent || '',
+        age: voice.age || '',
+        gender: voice.gender || '',
+        language: voice.language || '',
+        language_code: voice.languageCode || '',
+        loudness: voice.loudness || '',
+        style: voice.style || '',
+        tempo: voice.tempo || '',
+        texture: voice.texture || '',
+        is_cloned: voice.isCloned || false
+      };
+    });
+
+    // Log example voices after mapping
+    console.log('Example mapped voices:', voices.slice(0, 3));
 
     res.json({ voices });
   } catch (error) {
@@ -132,6 +138,9 @@ app.get('/api/cloned-voices', async (req, res) => {
     console.log('Fetching cloned voices...');
     const voices = await PlayHT.listClonedVoices();
     console.log(`Fetched ${voices.length} cloned voices`);
+
+    // Log raw response for debugging
+    console.log('Raw cloned voices:', JSON.stringify(voices.slice(0, 3), null, 2));
 
     // Map cloned voices without modifying IDs
     const mappedVoices = voices.map(voice => ({

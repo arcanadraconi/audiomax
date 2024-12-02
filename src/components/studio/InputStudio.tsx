@@ -6,7 +6,6 @@ import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
 import { Voice as PlayHTVoice } from '../../lib/playht';
-import { AudioPlayer } from './AudioPlayer';
 import { PlayHTWebSocket } from '../../lib/services/playhtWebSocket';
 
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
@@ -53,7 +52,6 @@ export function InputStudio() {
   const [generationProgress, setGenerationProgress] = useState<number>(0);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
-  const [generatedAudio, setGeneratedAudio] = useState<{ url: string; title: string; transcript: string } | null>(null);
   const [currentTranscript, setCurrentTranscript] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const webSocketRef = useRef<PlayHTWebSocket | null>(null);
@@ -157,6 +155,9 @@ export function InputStudio() {
     setGenerationPhase('context_adjustment');
     setGenerationProgress(0);
 
+    // Dispatch audio generation start event
+    window.dispatchEvent(new CustomEvent('audioGenerationStart'));
+
     try {
       // Generate transcript with LLM
       console.log('Generating transcript...');
@@ -186,14 +187,23 @@ export function InputStudio() {
         env.playht.userId,
         (progress) => {
           setGenerationProgress(progress.progress);
+          // Dispatch progress event
+          window.dispatchEvent(new CustomEvent('audioGenerationProgress', {
+            detail: { progress: progress.progress }
+          }));
         },
         (audioUrl) => {
           console.log('Audio generation complete:', audioUrl);
-          setGeneratedAudio({
-            url: audioUrl,
-            title: titleResult.title,
-            transcript: result.fullText
-          });
+          // Dispatch audio generated event
+          window.dispatchEvent(new CustomEvent('audioGenerated', {
+            detail: {
+              url: audioUrl,
+              title: titleResult.title,
+              transcript: result.fullText,
+              totalChunks: 1,
+              chunkIndex: 0
+            }
+          }));
           setGenerationPhase('complete');
           setIsGenerating(false);
         },
@@ -227,18 +237,6 @@ export function InputStudio() {
 
   return (
     <div className="space-y-6">
-      {/* Audio Player - Show during generation and after completion */}
-      {(isGenerating || generatedAudio) && (
-        <AudioPlayer
-          title={generatedAudio?.title || 'Generating Audio...'}
-          audioUrl={generatedAudio?.url}
-          transcript={generatedAudio?.transcript || currentTranscript}
-          isGenerating={isGenerating}
-          generationProgress={generationProgress}
-          generationPhase={generationPhase}
-        />
-      )}
-
       {/* Upload Area */}
       <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
         <h2 className="text-3xl font-medium mb-4 text-[#8ab9bd]/80">Audiomax Studio</h2>

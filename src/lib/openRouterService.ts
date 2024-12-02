@@ -14,6 +14,10 @@ interface GeneratedContent {
   estimatedDuration: number; // in minutes
 }
 
+interface GeneratedTitle {
+  title: string;
+}
+
 export class OpenRouterService {
   private static readonly API_URL = 'https://openrouter.ai/api/v1/chat/completions';
   private static readonly MODEL = 'google/learnlm-1.5-pro-experimental:free';  // Using a faster model
@@ -86,6 +90,35 @@ export class OpenRouterService {
       if (error instanceof Error) {
         throw new Error(`OpenRouter API error: ${error.message}`);
       }
+      throw error;
+    }
+  }
+
+  static async generateTitle(text: string): Promise<GeneratedTitle> {
+    const systemPrompt = `You are a content titling expert. Create a short, engaging title for an audio piece.
+
+Requirements:
+- Maximum 6 words
+- Engaging and descriptive
+- No quotes or special characters
+- Must reflect the main topic/theme
+- Should be suitable for an audio file name
+
+Return ONLY the title, nothing else.`;
+
+    try {
+      const response = await this.makeRequest(text, systemPrompt);
+      const title = response.choices[0].message.content.trim();
+      
+      // Clean and validate the title
+      const cleanTitle = title
+        .replace(/['"]/g, '') // Remove quotes
+        .replace(/[^\w\s-]/g, '') // Remove special characters except hyphens
+        .trim();
+
+      return { title: cleanTitle };
+    } catch (error) {
+      console.error('Error generating title:', error);
       throw error;
     }
   }

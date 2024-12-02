@@ -45,15 +45,10 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       const voiceList = await playhtClient.getVoices();
       console.log(`Fetched ${voiceList.length} voices`);
 
-      // Keep original voice IDs from PlayHT
-      const processedVoices = voiceList.map(voice => ({
-        ...voice,
-        // Don't modify the voice ID - use it as-is from PlayHT
-        id: voice.id
-      }));
-
-      setVoices(processedVoices);
-      setFilteredVoices(processedVoices);
+      // Sort voices by name
+      const sortedVoices = voiceList.sort((a, b) => a.name.localeCompare(b.name));
+      setVoices(sortedVoices);
+      setFilteredVoices(sortedVoices);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch voices';
       console.error('Voice library fetch error:', errorMessage);
@@ -75,15 +70,10 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       const clonedVoices = await playhtClient.getClonedVoices();
       console.log(`Fetched ${clonedVoices.length} cloned voices`);
 
-      // Keep original voice IDs for cloned voices
-      const processedVoices = clonedVoices.map(voice => ({
-        ...voice,
-        // Don't modify the voice ID - use it as-is from PlayHT
-        id: voice.id
-      }));
-
-      setVoices(processedVoices);
-      setFilteredVoices(processedVoices);
+      // Sort voices by name
+      const sortedVoices = clonedVoices.sort((a, b) => a.name.localeCompare(b.name));
+      setVoices(sortedVoices);
+      setFilteredVoices(sortedVoices);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch cloned voices';
       console.error('Cloned voices fetch error:', errorMessage);
@@ -130,6 +120,12 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   };
 
   const handleVoiceSelect = (voice: Voice) => {
+    console.log('Selected voice:', {
+      name: voice.name,
+      id: voice.id,
+      gender: voice.gender,
+      accent: voice.accent
+    });
     setSelectedVoice(voice);
     onVoiceSelect(voice);
     setSearchTerm('');

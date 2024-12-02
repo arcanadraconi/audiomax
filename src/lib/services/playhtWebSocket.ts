@@ -18,6 +18,7 @@ export class PlayHTWebSocket {
   private maxReconnectAttempts: number = 3;
   private reconnectDelay: number = 2000; // 2 seconds
   private connectionPromise: Promise<void> | null = null;
+  private currentVoiceId: string | null = null;
 
   private constructor(
     apiKey: string,
@@ -113,7 +114,7 @@ export class PlayHTWebSocket {
                 const arrayBuffer = reader.result as ArrayBuffer;
                 const chunk = new Uint8Array(arrayBuffer);
                 this.chunks.push(chunk);
-                console.log('Received audio chunk, size:', chunk.length);
+                console.log('Received audio chunk for voice:', this.currentVoiceId);
                 
                 // Update progress
                 this.onProgress({
@@ -125,9 +126,10 @@ export class PlayHTWebSocket {
             } else {
               // Handle JSON messages
               const message = JSON.parse(event.data);
-              console.log('WebSocket message:', message);
+              console.log('WebSocket response:', message);
 
               if (message.status === 'completed') {
+                console.log('Audio generation completed with voice:', this.currentVoiceId);
                 this.finalizeAudio();
               }
             }
@@ -190,6 +192,7 @@ export class PlayHTWebSocket {
     const url = URL.createObjectURL(blob);
 
     console.log('Audio generation complete:', {
+      voice: this.currentVoiceId,
       chunks: this.chunks.length,
       totalSize: totalLength
     });
@@ -205,9 +208,14 @@ export class PlayHTWebSocket {
     try {
       await this.connect();
 
+      // Store and log the exact voice ID being used
+      this.currentVoiceId = voiceId;
+      console.log('🎙️ Raw voice ID received:', voiceId);
+
+      // Create the message with exact voice ID
       const message = {
         text,
-        voice_id: voiceId,
+        voice_id: voiceId, // Use raw voice ID without modification
         model: 'Play3.0-mini',
         quality: 'premium',
         output_format: 'mp3',
@@ -215,11 +223,11 @@ export class PlayHTWebSocket {
         sample_rate: 24000
       };
 
+      // Log the full request for debugging
+      console.log('📝 Full WebSocket request:', JSON.stringify(message, null, 2));
+
       if (this.ws?.readyState === WebSocket.OPEN) {
-        console.log('Sending generation request:', {
-          textLength: text.length,
-          voice: voiceId
-        });
+        console.log('Sending generation request...');
         this.ws.send(JSON.stringify(message));
       } else {
         console.log('Queueing message for later');
@@ -241,6 +249,7 @@ export class PlayHTWebSocket {
     this.isConnecting = false;
     this.reconnectAttempts = 0;
     this.connectionPromise = null;
+    this.currentVoiceId = null;
     PlayHTWebSocket.instance = null;
   }
 }

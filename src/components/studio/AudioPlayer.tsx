@@ -25,7 +25,7 @@ export function AudioPlayer({
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [showTranscript, setShowTranscript] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(true); // Default to showing transcript
   const [transcript, setTranscript] = useState(initialTranscript);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -34,6 +34,7 @@ export function AudioPlayer({
   useEffect(() => {
     if (initialTranscript) {
       setTranscript(initialTranscript);
+      setShowTranscript(true); // Show transcript when it's updated
     }
   }, [initialTranscript]);
 
@@ -93,41 +94,9 @@ export function AudioPlayer({
   // Format title for display
   const displayTitle = title.length > 50 ? title.substring(0, 47) + '...' : title;
 
-  const renderGenerationStatus = () => {
-    if (generationPhase === 'context_adjustment') {
-      return (
-        <div className="flex items-center gap-2 mb-4">
-          <Loader2 className="h-4 w-4 text-primary animate-spin" />
-          <span className="text-white/60">Context adjustment...</span>
-        </div>
-      );
-    }
-
-    if (generationPhase === 'generating_audio') {
-      return (
-        <div className="flex flex-col space-y-2 w-full mb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-4 w-4 text-primary animate-spin" />
-              <span className="text-white/60">Generating audio...</span>
-            </div>
-            <span className="text-white/60">{Math.round(generationProgress)}%</span>
-          </div>
-          <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-300"
-              style={{ width: `${generationProgress}%` }}
-            />
-          </div>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
+      {/* Title and Controls */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex-1 mr-4">
           <h3 className="text-lg text-white/80 truncate">{displayTitle}</h3>
@@ -169,9 +138,34 @@ export function AudioPlayer({
       </div>
 
       {/* Generation Status */}
-      {isGenerating && renderGenerationStatus()}
+      {isGenerating && (
+        <div className="mb-4">
+          {generationPhase === 'context_adjustment' ? (
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-5 w-5 text-white/70 animate-spin" />
+              <span className="text-white/70">Context adjustment...</span>
+            </div>
+          ) : (
+            <div className="flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 text-white/70 animate-spin" />
+                  <span className="text-white/70">Generating audio...</span>
+                </div>
+                <span className="text-white/70">{Math.round(generationProgress)}%</span>
+              </div>
+              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white/70 rounded-full transition-all duration-300"
+                  style={{ width: `${generationProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
-      {/* Show transcript if available and toggled */}
+      {/* Transcript */}
       {transcript && showTranscript && (
         <div className="mb-4">
           <div className="w-full h-32 bg-white/5 border border-white/20 rounded-md p-2 text-white/80 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
@@ -189,8 +183,7 @@ export function AudioPlayer({
         </div>
       )}
 
-      <audio ref={audioRef} src={audioUrl} />
-
+      {/* Audio Controls */}
       <div className="flex flex-col gap-2">
         <div
           ref={progressBarRef}
@@ -221,6 +214,9 @@ export function AudioPlayer({
           </div>
         </div>
       </div>
+
+      {/* Hidden Audio Element */}
+      {audioUrl && <audio ref={audioRef} src={audioUrl} />}
     </div>
   );
 }

@@ -40,10 +40,17 @@ interface SpeechGenerationResponse {
   chunks?: number;
 }
 
+interface VoiceCache {
+  voices: Voice[];
+  timestamp: number;
+}
+
 class PlayHTClient {
   private baseUrl: string;
   private generator: ParallelAudioGenerator | null = null;
   private assembler: AudioAssembler | null = null;
+  private voiceCache: VoiceCache | undefined;
+  private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
     this.baseUrl = 'http://localhost:3001/api';
@@ -52,6 +59,13 @@ class PlayHTClient {
 
   async getVoices(): Promise<Voice[]> {
     try {
+      // Check cache first
+      const now = Date.now();
+      if (this.voiceCache && (now - this.voiceCache.timestamp) < this.CACHE_DURATION) {
+        console.log('Using cached voices');
+        return this.voiceCache.voices;
+      }
+
       console.log('Fetching voices from server');
       const response = await fetch(`${this.baseUrl}/voices`);
       if (!response.ok) {
@@ -62,8 +76,13 @@ class PlayHTClient {
       console.log('Raw voices response:', data);
       const voices = data?.voices || [];
       
-      // Sort voices by name for better organization
-      return voices.sort((a: Voice, b: Voice) => a.name.localeCompare(b.name));
+      // Cache the voices
+      this.voiceCache = {
+        voices: voices.sort((a: Voice, b: Voice) => a.name.localeCompare(b.name)),
+        timestamp: now
+      };
+      
+      return this.voiceCache.voices;
     } catch (error) {
       console.error('Error fetching voices:', error);
       throw error;
@@ -206,6 +225,10 @@ class PlayHTClient {
       this.assembler.dispose();
       this.assembler = null;
     }
+  }
+
+  clearCache() {
+    this.voiceCache = undefined;
   }
 }
 

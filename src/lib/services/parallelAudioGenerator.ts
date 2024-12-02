@@ -58,8 +58,8 @@ export class ParallelAudioGenerator {
 
       console.log(`Starting parallel generation for ${chunks.length} chunks`);
 
-      // Initialize WebSocket with voice
-      this.webSocket = new PlayHTWebSocket(
+      // Initialize WebSocket
+      this.webSocket = PlayHTWebSocket.getInstance(
         env.playht.secretKey,
         env.playht.userId,
         (progress) => this.handleWebSocketProgress(progress),
@@ -72,19 +72,6 @@ export class ParallelAudioGenerator {
         chunks.map(chunk => this.generateChunkWithRetry(chunk, voice))
       );
 
-      // Wait for all chunks to complete
-      console.log('Waiting for all chunks to complete...');
-      while (this.pendingChunks.size > 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        console.log(`Remaining chunks: ${this.pendingChunks.size}`);
-      }
-
-      // Clean up WebSocket
-      if (this.webSocket) {
-        this.webSocket.disconnect();
-        this.webSocket = null;
-      }
-
       // Sort results by chunk index and return audio URLs
       return results
         .sort((a, b) => a.chunkIndex - b.chunkIndex)
@@ -92,12 +79,13 @@ export class ParallelAudioGenerator {
 
     } catch (error) {
       console.error('Error in parallel generation:', error);
-      // Clean up WebSocket on error
+      throw error;
+    } finally {
+      // Clean up WebSocket
       if (this.webSocket) {
         this.webSocket.disconnect();
         this.webSocket = null;
       }
-      throw error;
     }
   }
 

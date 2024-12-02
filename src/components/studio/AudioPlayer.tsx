@@ -12,7 +12,7 @@ interface AudioPlayerProps {
 }
 
 export function AudioPlayer({
-  title = 'Generated audio title',
+  title = 'Generated Audio',
   audioUrl,
   isGenerating = false,
   generationProgress = 0,
@@ -23,7 +23,7 @@ export function AudioPlayer({
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [showTranscript, setShowTranscript] = useState(true); // Show transcript by default
+  const [showTranscript, setShowTranscript] = useState(false);
   const [transcript, setTranscript] = useState(initialTranscript);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -32,7 +32,6 @@ export function AudioPlayer({
   useEffect(() => {
     if (initialTranscript) {
       setTranscript(initialTranscript);
-      setShowTranscript(true); // Show transcript when it becomes available
     }
   }, [initialTranscript]);
 
@@ -89,39 +88,53 @@ export function AudioPlayer({
     }
   };
 
+  // Format title for display
+  const displayTitle = title.length > 50 ? title.substring(0, 47) + '...' : title;
+
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-lg p-2 md:p-4 border border-white/10 shadow-lg">
       <div className="flex justify-between items-center mb-4">
-        <span className="text-lg text-white/80">{title}</span>
+        <div className="flex-1 mr-4">
+          <h3 className="text-lg text-white/80 truncate">{displayTitle}</h3>
+          {duration > 0 && (
+            <p className="text-sm text-white/60 mt-1">
+              Duration: {formatTime(duration)}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className={`text-white/60 hover:bg-white/10 transition-colors duration-300 ${showTranscript ? 'bg-white/10' : ''}`}
-            onClick={() => setShowTranscript(!showTranscript)}
-          >
-            <FileText className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white/60 hover:bg-white/10 transition-colors duration-300"
-            onClick={() => {
-              if (audioUrl) {
+          {transcript && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`text-white/60 hover:bg-white/10 transition-colors duration-300 ${showTranscript ? 'bg-white/10' : ''}`}
+              onClick={() => setShowTranscript(!showTranscript)}
+              title="Show/Hide Transcript"
+            >
+              <FileText className="h-4 w-4" />
+            </Button>
+          )}
+          {audioUrl && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-white/60 hover:bg-white/10 transition-colors duration-300"
+              onClick={() => {
                 const link = document.createElement('a');
                 link.href = audioUrl;
                 link.download = `${title}.mp3`;
                 link.click();
-              }
-            }}
-            disabled={!audioUrl || isGenerating}
-          >
-            <Download className="h-4 w-4" />
-          </Button>
+              }}
+              disabled={isGenerating}
+              title="Download Audio"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Always show transcript if available */}
+      {/* Show transcript if available and toggled */}
       {transcript && showTranscript && (
         <div className="mb-4">
           <div className="w-full h-32 bg-white/5 border border-white/20 rounded-md p-2 text-white/80 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent hover:scrollbar-thumb-white/30">
@@ -181,6 +194,7 @@ export function AudioPlayer({
                   className="text-white/60 hover:bg-white/10 transition-colors duration-300"
                   onClick={handlePlayPause}
                   disabled={!audioUrl}
+                  title={isPlaying ? 'Pause' : 'Play'}
                 >
                   {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                 </Button>

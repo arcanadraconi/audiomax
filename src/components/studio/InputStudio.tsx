@@ -7,16 +7,10 @@ import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
 import { playhtClient, Voice as PlayHTVoice } from '../../lib/playht';
 import { AudioPlayer } from './AudioPlayer';
+import { PlayHTWebSocket } from '../../lib/services/playhtWebSocket';
 
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB in bytes
-
-interface AudioResponse {
-  status: string;
-  audioUrl?: string;
-  audioUrls?: string[];
-  chunks?: number;
-}
 
 const audiences = [
   {
@@ -59,9 +53,10 @@ export function InputStudio() {
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
   const [generationPhase, setGenerationPhase] = useState<string>('');
   const [generationProgress, setGenerationProgress] = useState<number>(0);
-  const [generatedAudio, setGeneratedAudio] = useState<{ url: string; transcript: string } | null>(null);
+  const [generatedAudio, setGeneratedAudio] = useState<{ url: string; title: string; transcript: string } | null>(null);
   const [currentTranscript, setCurrentTranscript] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const webSocketRef = useRef<PlayHTWebSocket | null>(null);
 
   // Use the audio processing hook
   const {
@@ -73,37 +68,15 @@ export function InputStudio() {
   // Check if voice cloning is enabled from environment
   const isVoiceCloningEnabled = env.features.voiceCloning;
 
-  // Set up event listeners for audio generation progress
+  // Cleanup WebSocket on unmount
   useEffect(() => {
-    const handleGenerationProgress = (event: CustomEvent) => {
-      const { progress } = event.detail;
-      setGenerationProgress(progress);
-    };
-
-    const handleAssemblyProgress = (event: CustomEvent) => {
-      const { phase, progress } = event.detail;
-      setGenerationPhase(`${phase} (${Math.round(progress)}%)`);
-      setGenerationProgress(progress);
-    };
-
-    const handleAudioGenerated = (event: CustomEvent) => {
-      const { url } = event.detail;
-      setGeneratedAudio({ url, transcript: currentTranscript });
-      setIsGenerating(false);
-      setGenerationPhase('');
-      setGenerationProgress(0);
-    };
-
-    window.addEventListener('audioGenerationProgress', handleGenerationProgress as EventListener);
-    window.addEventListener('audioAssemblyProgress', handleAssemblyProgress as EventListener);
-    window.addEventListener('audioGenerated', handleAudioGenerated as EventListener);
-
     return () => {
-      window.removeEventListener('audioGenerationProgress', handleGenerationProgress as EventListener);
-      window.removeEventListener('audioAssemblyProgress', handleAssemblyProgress as EventListener);
-      window.removeEventListener('audioGenerated', handleAudioGenerated as EventListener);
+      if (webSocketRef.current) {
+        webSocketRef.current.disconnect();
+        webSocketRef.current = null;
+      }
     };
-  }, [currentTranscript]); // Add currentTranscript as dependency
+  }, []);
 
   const validateFile = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
@@ -189,6 +162,10 @@ export function InputStudio() {
       );
       console.log('Transcript generated:', result);
 
+      // Generate title
+      const titleResult = await OpenRouterService.generateTitle(result.fullText);
+      console.log('Title generated:', titleResult);
+
       // Store the transcript
       setCurrentTranscript(result.fullText);
 
@@ -196,19 +173,41 @@ export function InputStudio() {
       setEstimatedDuration(result.estimatedDuration);
       setTotalWordCount(result.fullText.split(/\s+/).length);
 
-      // Generate audio using PlayHT
+      // Initialize WebSocket for audio generation
       setGenerationPhase('Generating audio...');
-      console.log('Starting speech generation with parallel processing');
-      console.log('Text length:', result.fullText.length, 'characters');
-      console.log('Using voice:', selectedVoice.id);
+      
+      // Get WebSocket instance
+      webSocketRef.current = PlayHTWebSocket.getInstance(
+        env.playht.secretKey,
+        env.playht.userId,
+        (progress) => {
+          setGenerationProgress(progress.progress);
+          if (progress.status) {
+            setGenerationPhase(progress.status);
+          }
+        },
+        (audioUrl) => {
+          console.log('Audio generation complete:', audioUrl);
+          setGeneratedAudio({
+            url: audioUrl,
+            title: titleResult.title,
+            transcript: result.fullText
+          });
+          setIsGenerating(false);
+          setGenerationPhase('');
+          setGenerationProgress(0);
+        },
+        (error) => {
+          console.error('WebSocket error:', error);
+          setError(error);
+          setIsGenerating(false);
+          setGenerationPhase('');
+          setGenerationProgress(0);
+        }
+      );
 
-      const audioResponse = await playhtClient.generateSpeech(result.fullText, {
-        voice: selectedVoice.id,
-        quality: 'premium',
-        speed: 1.0
-      }) as AudioResponse;
-
-      console.log('Audio generated:', audioResponse);
+      // Generate speech
+      await webSocketRef.current.generateSpeech(result.fullText, selectedVoice.id);
 
     } catch (err) {
       console.error('Content processing error:', err);
@@ -386,7 +385,7 @@ export function InputStudio() {
       {/* Audio Player */}
       {generatedAudio && (
         <AudioPlayer
-          title={selectedFile?.name || 'Generated Audio'}
+          title={generatedAudio.title}
           audioUrl={generatedAudio.url}
           transcript={generatedAudio.transcript}
           isGenerating={isGenerating}

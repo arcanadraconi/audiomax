@@ -4,11 +4,11 @@ import { playhtClient } from '../../lib/playht';
 import type { Voice } from '../../lib/playht';
 
 interface VoiceSearchProps {
-  isLibraryMode: boolean;
   onVoiceSelect: (voice: Voice) => void;
+  isLibraryMode?: boolean;
 }
 
-export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) {
+export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearchProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [filteredVoices, setFilteredVoices] = useState<Voice[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -18,11 +18,7 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (isLibraryMode) {
-      fetchVoiceLibrary();
-    } else {
-      fetchClonedVoices();
-    }
+    fetchVoices();
   }, [isLibraryMode]);
 
   useEffect(() => {
@@ -36,12 +32,15 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchVoiceLibrary = async () => {
+  const fetchVoices = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      console.log('Fetching voice library...');
-      const voiceList = await playhtClient.getVoices();
+      console.log('Fetching voices...');
+      const voiceList = isLibraryMode 
+        ? await playhtClient.getVoices()
+        : await playhtClient.getClonedVoices();
+      
       console.log(`Fetched ${voiceList.length} voices`);
 
       // Sort voices by name
@@ -50,33 +49,8 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       setFilteredVoices(sortedVoices);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch voices';
-      console.error('Voice library fetch error:', errorMessage);
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchClonedVoices = async () => {
-    if (!import.meta.env.VITE_ENABLE_VOICE_CLONING) {
-      setError('Voice cloning is not enabled');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    try {
-      console.log('Fetching cloned voices...');
-      const clonedVoices = await playhtClient.getClonedVoices();
-      console.log(`Fetched ${clonedVoices.length} cloned voices`);
-
-      // Sort voices by name
-      const sortedVoices = clonedVoices.sort((a, b) => a.name.localeCompare(b.name));
-      setVoices(sortedVoices);
-      setFilteredVoices(sortedVoices);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch cloned voices';
-      console.error('Cloned voices fetch error:', errorMessage);
-      setError(errorMessage);
+      console.error('Voice fetch error:', errorMessage);
+      setError('Unable to load voices. Please try refreshing the page.');
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +110,10 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
     return `${voice.id}-${voice.name}-${voice.language}-${index}`;
   };
 
+  const handleRetry = () => {
+    fetchVoices();
+  };
+
   return (
     <div className="relative" ref={dropdownRef}>
       <div className="relative">
@@ -154,7 +132,15 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       )}
 
       {error && (
-        <div className="mt-2 text-red-400">{error}</div>
+        <div className="mt-2 text-red-400">
+          {error}
+          <button 
+            onClick={handleRetry}
+            className="ml-2 text-blue-400 hover:text-blue-300 underline"
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (

@@ -52,8 +52,10 @@ class PlayHTClient {
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
-    // Use the local server URL
-    this.baseUrl = 'http://localhost:3001/api';
+    // Use the appropriate URL based on environment
+    this.baseUrl = (import.meta.env as any).PROD 
+      ? 'https://audiomax-jo3yc.ondigitalocean.app/api'
+      : 'http://localhost:3001/api';
     console.log('PlayHT client initialized with baseUrl:', this.baseUrl);
   }
 

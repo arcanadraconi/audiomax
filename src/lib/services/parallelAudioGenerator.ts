@@ -1,7 +1,6 @@
 import { PlayHTWebSocket, WebSocketProgress } from './playhtWebSocket';
 import { ProcessedChunk } from './transcriptProcessor';
 import PQueue from 'p-queue';
-import { env } from '../../env';
 
 interface GenerationProgress {
   chunkIndex: number;
@@ -60,11 +59,11 @@ export class ParallelAudioGenerator {
 
       // Initialize WebSocket
       this.webSocket = PlayHTWebSocket.getInstance(
-        env.playht.secretKey,
-        env.playht.userId,
-        (progress) => this.handleWebSocketProgress(progress),
-        (audioUrl) => this.handleWebSocketComplete(audioUrl),
-        (error) => this.handleWebSocketError(error)
+        import.meta.env.VITE_PLAYHT_SECRET_KEY,
+        import.meta.env.VITE_PLAYHT_USER_ID,
+        (progress: WebSocketProgress) => this.handleWebSocketProgress(progress),
+        (audioUrl: string) => this.handleWebSocketComplete(audioUrl),
+        (error: string) => this.handleWebSocketError(error)
       );
 
       // Generate all chunks with retry logic

@@ -20,7 +20,7 @@ interface GeneratedTitle {
 
 export class OpenRouterService {
   private static readonly API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-  private static readonly MODEL = 'google/learnlm-1.5-pro-experimental:free';  // Using a faster model
+  private static readonly MODEL = 'google/gemini-flash-1.5-8b';  // Using a faster model
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
   private static readonly TARGET_WORDS = OpenRouterService.TARGET_DURATION * OpenRouterService.WORDS_PER_MINUTE; // 2250 words
@@ -28,7 +28,6 @@ export class OpenRouterService {
   private static readonly MIN_CHUNK_WORDS = 700; // Minimum words per chunk
   private static readonly MAX_CHUNK_WORDS = 1000; // Maximum words per chunk
   private static readonly TARGET_CHUNKS = 9; // Target number of chunks
-  private static readonly WORDS_PER_CHUNK = Math.floor(OpenRouterService.TARGET_WORDS / OpenRouterService.TARGET_CHUNKS); // ~321 words per chunk
 
   private static getApiKey(): string {
     const key = import.meta.env.VITE_OPENROUTER_API_KEY;

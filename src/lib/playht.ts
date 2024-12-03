@@ -1,7 +1,6 @@
 import { TranscriptProcessor } from './services/transcriptProcessor';
 import { ParallelAudioGenerator } from './services/parallelAudioGenerator';
 import { AudioAssembler } from './services/audioAssembler';
-import { env } from '../env';
 
 type VoiceEngine = 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'PlayHT1.0' | 'Standard' | 'Play3.0-mini';
 
@@ -62,9 +61,7 @@ class PlayHTClient {
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${import.meta.env.VITE_PLAYHT_SECRET_KEY}`,
-
       'X-User-ID': import.meta.env.VITE_PLAYHT_USER_ID
-
     };
   }
 

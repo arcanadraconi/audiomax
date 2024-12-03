@@ -16,13 +16,22 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Initialize Analytics only if supported and in production
+// Initialize Analytics only if in production and supported
 let analytics = null;
-if ((import.meta.env as any).PROD) {
+if ((import.meta.env as any).PROD && firebaseConfig.measurementId) {
   isSupported().then(supported => {
     if (supported) {
-      analytics = getAnalytics(app);
+      try {
+        analytics = getAnalytics(app);
+        console.log('Firebase Analytics initialized successfully');
+      } catch (error) {
+        console.warn('Failed to initialize Firebase Analytics:', error);
+      }
+    } else {
+      console.warn('Firebase Analytics not supported in this environment');
     }
+  }).catch(error => {
+    console.warn('Error checking Firebase Analytics support:', error);
   });
 }
 

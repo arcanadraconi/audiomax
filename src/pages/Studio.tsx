@@ -6,7 +6,6 @@ import { AudioPlayer } from '../components/studio/AudioPlayer';
 import { VoiceCloning } from '../components/studio/VoiceCloning';
 import { VoiceLibrary } from '../components/studio/favorites';
 import { Navbar } from '../components/layout/Navbar';
-import { AudioProcessingDemo } from '../components/studio/AudioProcessingDemo';
 
 interface Voice {
   id: string;
@@ -40,7 +39,6 @@ export default function Studio() {
   const [audioTitle, setAudioTitle] = useState<string>('Generated audio');
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
-  const [showDemo, setShowDemo] = useState(false);
   const [transcript, setTranscript] = useState<string>('');
 
   useEffect(() => {
@@ -168,24 +166,6 @@ export default function Studio() {
                 </ul>
               </div>
             </div>
-
-            {/* Demo Toggle */}
-            <div className="px-3 mt-4">
-              <Button
-                variant="outline"
-                onClick={() => setShowDemo(!showDemo)}
-                className="w-full text-white/70"
-              >
-                {showDemo ? 'Hide Processing Demo' : 'Show Processing Demo'}
-              </Button>
-            </div>
-
-            {/* Processing Demo */}
-            {showDemo && (
-              <div className="px-3">
-                <AudioProcessingDemo />
-              </div>
-            )}
           </div>
 
           {/* Middle Column - Main Controls */}

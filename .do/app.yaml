@@ -8,6 +8,7 @@ services:
     deploy_on_push: true
   build_command: |
     npm install -g typescript
+    npm install -g vite
     npm ci
     npm i -D @types/react-dom @types/firebase @types/jest
     npm run build

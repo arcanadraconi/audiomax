@@ -1,0 +1,20 @@
+name: audiomax
+services:
+- name: web
+  github:
+    repo: arcanadraconi/audiomax
+    branch: main
+  build_command: npm run build
+  run_command: npm run start
+  envs:
+  - key: NODE_ENV
+    value: production
+  - key: PORT
+    value: "3001"
+  - key: ALLOWED_ORIGIN
+    value: "https://audiomax-jo3yc.ondigitalocean.app,https://audiomax.ai"
+  http_port: 3001
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  routes:
+  - path: /

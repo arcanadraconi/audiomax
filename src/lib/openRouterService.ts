@@ -29,7 +29,7 @@ export class OpenRouterService {
   private static readonly TARGET_CHUNKS = 9; // Target number of chunks
 
   private static getApiKey(): string {
-    const key = import.meta.env.VITE_OPENROUTER_API_KEY;
+    const key = (import.meta.env as any).VITE_OPENROUTER_API_KEY;
     if (!key) {
       throw new Error('OpenRouter API key not found in environment variables');
     }

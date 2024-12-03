@@ -1,92 +1,26 @@
-import mongoose, { Types } from 'mongoose';
-import { Transcript, ITranscript } from './models/Transcript';
+import { MongoClient, Db } from 'mongodb';
 
-interface SavedTranscript extends ITranscript {
-  _id: Types.ObjectId;
-}
+let cachedDb: Db | null = null;
 
-export class DbService {
-  private static isConnected = false;
-
-  static async connect() {
-    if (this.isConnected) return;
-
-    try {
-      await mongoose.connect(import.meta.env.VITE_MONGODB_URI);
-      this.isConnected = true;
-      console.log('Connected to MongoDB');
-    } catch (error) {
-      console.error('MongoDB connection error:', error);
-      throw error;
-    }
+export async function connectToDatabase(): Promise<Db> {
+  if (cachedDb) {
+    return cachedDb;
   }
 
-  static async saveTranscript(
-    chunks: string[],
-    voice: any,
-    audience: string
-  ): Promise<SavedTranscript> {
-    await this.connect();
-
-    const transcript = new Transcript({
-      chunks: chunks.map(text => ({
-        text,
-        status: 'pending'
-      })),
-      metadata: {
-        voice: {
-          id: voice.id,
-          name: voice.name,
-          accent: voice.accent,
-          age: voice.age,
-          gender: voice.gender,
-          language: voice.language,
-          style: voice.style,
-          tempo: voice.tempo
-        },
-        audience,
-        createdAt: new Date()
-      }
-    });
-
-    const savedTranscript = await transcript.save();
-    return savedTranscript as SavedTranscript;
-  }
-
-  static async updateChunkStatus(
-    transcriptId: Types.ObjectId,
-    chunkIndex: number,
-    status: 'pending' | 'processing' | 'completed',
-    audioUrl?: string
-  ): Promise<SavedTranscript | null> {
-    await this.connect();
-
-    const update: any = {
-      [`chunks.${chunkIndex}.status`]: status
-    };
-    
-    if (audioUrl) {
-      update[`chunks.${chunkIndex}.audioUrl`] = audioUrl;
+  try {
+    // Get MongoDB URI from environment variables
+    const uri = (import.meta.env as any).VITE_MONGODB_URI;
+    if (!uri) {
+      throw new Error('MongoDB URI not found in environment variables');
     }
 
-    const updatedTranscript = await Transcript.findByIdAndUpdate(
-      transcriptId,
-      { $set: update },
-      { new: true }
-    );
+    const client = await MongoClient.connect(uri);
+    const db = client.db('audiomax');
 
-    return updatedTranscript as SavedTranscript | null;
-  }
-
-  static async getTranscript(id: Types.ObjectId): Promise<SavedTranscript | null> {
-    await this.connect();
-    const transcript = await Transcript.findById(id);
-    return transcript as SavedTranscript | null;
-  }
-
-  static async listTranscripts(): Promise<SavedTranscript[]> {
-    await this.connect();
-    const transcripts = await Transcript.find().sort({ 'metadata.createdAt': -1 });
-    return transcripts as SavedTranscript[];
+    cachedDb = db;
+    return db;
+  } catch (error) {
+    console.error('Error connecting to MongoDB:', error);
+    throw error;
   }
 }

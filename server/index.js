@@ -2,6 +2,11 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import fetch from 'node-fetch';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -17,7 +22,6 @@ console.log('Initializing with:', {
 
 // CORS configuration
 const corsOptions = {
-  // Allow requests from any origin in development, or specific origins in production
   origin: function(origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
@@ -29,11 +33,11 @@ const corsOptions = {
       'http://localhost:5174',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
-      // Add your production domains here
-      process.env.ALLOWED_ORIGIN, // From environment variable
-    ].filter(Boolean); // Remove any undefined values
+      // Production domains
+      'https://audiomax-jo3yc.ondigitalocean.app',
+      'https://audiomax.ai'
+    ];
     
-    // Check if the origin is allowed
     if (process.env.NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
@@ -51,6 +55,9 @@ app.use(express.json());
 
 // Pre-flight requests
 app.options('*', cors(corsOptions));
+
+// Serve static files from the dist directory
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -216,6 +223,11 @@ app.get('/api/cloned-voices', async (req, res) => {
       details: error.response?.data || error.stack
     });
   }
+});
+
+// Serve index.html for all other routes (SPA support)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
 // Error handling middleware

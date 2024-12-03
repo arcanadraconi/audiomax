@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "dev:server": "cd server && node index.js",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
-    "test:server": "cd server && node test-tts.js"
+    "test:server": "cd server && node test-tts.js",
+    "start": "cd server && node index.js"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.0.2",

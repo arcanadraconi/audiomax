@@ -7,7 +7,7 @@ services:
     branch: main
     deploy_on_push: true
   build_command: |
-    npm install -g typescript vite
+    npm install -g typescript
     npm ci
     npm run build
   run_command: cd server && node index.js

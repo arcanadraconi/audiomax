@@ -12,19 +12,26 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Initialize credentials
-const apiKey = process.env.VITE_PLAYHT_SECRET_KEY;
-const userId = process.env.VITE_PLAYHT_USER_ID;
+const apiKey = process.env.PLAYHT_SECRET_KEY;
+const userId = process.env.PLAYHT_USER_ID;
 
-console.log('Initializing with:', {
-  apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'missing',
-  userId: userId ? `${userId.substring(0, 4)}...` : 'missing'
+console.log('Environment:', {
+  NODE_ENV: process.env.NODE_ENV,
+  PORT: port,
+  PLAYHT_SECRET_KEY: apiKey ? `${apiKey.substring(0, 10)}...` : 'missing',
+  PLAYHT_USER_ID: userId ? `${userId.substring(0, 4)}...` : 'missing'
 });
 
 // CORS configuration
 const corsOptions = {
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    console.log('Request origin:', origin);
+    
+    // Allow requests with no origin (like mobile apps, curl requests, or same-origin requests)
+    if (!origin) {
+      console.log('No origin, allowing request');
+      return callback(null, true);
+    }
     
     // List of allowed origins
     const allowedOrigins = [
@@ -38,9 +45,19 @@ const corsOptions = {
       'https://audiomax.ai'
     ];
     
-    if (process.env.NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
+    // In development mode, allow all origins
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Development mode, allowing all origins');
+      callback(null, true);
+      return;
+    }
+
+    // In production, check against allowed origins
+    if (allowedOrigins.includes(origin)) {
+      console.log('Origin allowed:', origin);
       callback(null, true);
     } else {
+      console.log('Origin not allowed:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -88,6 +105,16 @@ app.post('/api/websocket-auth', async (req, res) => {
         statusText: response.statusText,
         error: errorText
       });
+
+      // Check for specific error types
+      if (errorText.includes('LEASE_NOT_ENOUGH_CREDITS')) {
+        return res.status(402).json({
+          error: 'Insufficient credits',
+          message: 'Your PlayHT account has run out of credits. Please add more credits to continue generating audio.',
+          details: errorText
+        });
+      }
+
       throw new Error(`WebSocket auth failed: ${response.statusText} - ${errorText}`);
     }
 
@@ -111,6 +138,11 @@ app.get('/api/voices', async (req, res) => {
     }
 
     console.log('Fetching voices from PlayHT API...');
+    console.log('Using credentials:', {
+      apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'missing',
+      userId: userId ? `${userId.substring(0, 4)}...` : 'missing'
+    });
+
     const response = await fetch('https://api.play.ht/api/v2/voices', {
       method: 'GET',
       headers: {
@@ -131,6 +163,7 @@ app.get('/api/voices', async (req, res) => {
     }
 
     const data = await response.json();
+    console.log('Raw PlayHT response:', data);
     
     // Handle both array and object response formats
     const voiceArray = Array.isArray(data) ? data : (data.voices || []);

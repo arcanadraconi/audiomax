@@ -8,7 +8,8 @@ services:
     deploy_on_push: true
   build_command: |
     npm install -g typescript
-    npm ci --omit=dev
+    npm ci
+    npm i -D @types/react-dom @types/firebase
     npm run build
   run_command: cd server && node index.js
   environment_slug: node-js

@@ -53,6 +53,7 @@ class PlayHTClient {
   private readonly CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
+    // Use the local server URL
     this.baseUrl = 'http://localhost:3001/api';
     console.log('PlayHT client initialized with baseUrl:', this.baseUrl);
   }
@@ -61,7 +62,9 @@ class PlayHTClient {
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${import.meta.env.VITE_PLAYHT_SECRET_KEY}`,
+
       'X-User-ID': import.meta.env.VITE_PLAYHT_USER_ID
+
     };
   }
 
@@ -77,7 +80,7 @@ class PlayHTClient {
       console.log('Fetching voices from server');
       const response = await fetch(`${this.baseUrl}/voices`, {
         headers: this.getHeaders(),
-        credentials: 'include'
+        method: 'GET'
       });
       
       if (!response.ok) {
@@ -197,7 +200,6 @@ class PlayHTClient {
       const response = await fetch(`${this.baseUrl}/clone`, {
         method: 'POST',
         headers: this.getHeaders(),
-        credentials: 'include',
         body: formData
       });
 
@@ -216,8 +218,7 @@ class PlayHTClient {
     try {
       console.log('Fetching cloned voices');
       const response = await fetch(`${this.baseUrl}/cloned-voices`, {
-        headers: this.getHeaders(),
-        credentials: 'include'
+        headers: this.getHeaders()
       });
       
       if (!response.ok) {

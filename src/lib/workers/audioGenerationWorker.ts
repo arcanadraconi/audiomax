@@ -1,5 +1,5 @@
 import { expose } from 'comlink';
-import { PlayHTWebSocket } from '../services/playhtWebSocket';
+import { PlayHTWebSocket, WebSocketProgress } from '../services/playhtWebSocket';
 import { env } from '../../env';
 
 // Define worker scope type
@@ -10,35 +10,45 @@ class AudioGenerationWorker {
 
   async generateAudio(text: string, voice: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      // Create WebSocket if not exists
-      if (!this.ws) {
-        this.ws = new PlayHTWebSocket(
-          env.playht.secretKey,
-          env.playht.userId,
-          (progress) => {
-            // Post progress updates to main thread
-            self.postMessage({
-              type: 'progress',
-              data: progress
-            });
-          },
-          (audioUrl) => {
-            // Resolve promise with audio URL
-            resolve(audioUrl);
-          },
-          (error) => {
-            // Reject promise with error
-            reject(new Error(error));
-          }
-        );
-      }
+      try {
+        // Create WebSocket if not exists
+        if (!this.ws) {
+          this.ws = PlayHTWebSocket.getInstance(
+            env.playht.secretKey,
+            env.playht.userId,
+            (progress: WebSocketProgress) => {
+              // Post progress updates to main thread
+              self.postMessage({
+                type: 'progress',
+                data: progress
+              });
+            },
+            (audioUrl: string) => {
+              // Resolve promise with audio URL
+              resolve(audioUrl);
+            },
+            (error: string) => {
+              // Reject promise with error
+              reject(new Error(error));
+            }
+          );
+        }
 
-      // Generate speech using WebSocket
-      this.ws.generateSpeech(text, voice).catch(reject);
+        // Generate speech using WebSocket
+        if (!this.ws) {
+          throw new Error('Failed to initialize WebSocket');
+        }
+        
+        this.ws.generateSpeech(text, voice).catch((error: Error) => {
+          reject(error);
+        });
+      } catch (error) {
+        reject(error instanceof Error ? error : new Error('Unknown error in audio generation'));
+      }
     });
   }
 
-  dispose() {
+  dispose(): void {
     if (this.ws) {
       this.ws.disconnect();
       this.ws = null;

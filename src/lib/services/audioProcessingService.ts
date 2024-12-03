@@ -8,7 +8,7 @@ export interface ProcessingProgress {
 
 export interface AudioProcessingOptions {
   voice: string;
-  quality?: 'draft' | 'low' | 'medium' | 'high' | 'premium';
+  quality?: 'draft' | 'standard' | 'premium';
   speed?: number;
   onProgress?: (progress: ProcessingProgress) => void;
 }

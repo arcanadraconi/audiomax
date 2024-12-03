@@ -13,12 +13,25 @@ interface ProcessedTranscript {
   };
 }
 
+interface TfIdfItem {
+  term: string;
+  tfidf: number;
+}
+
 export class TranscriptProcessor {
   private static readonly WORDS_PER_MINUTE = 150;
   private static readonly CHUNK_SIZE = 1800; // characters
   private static readonly MIN_CHUNK_SIZE = 500; // characters
   private static readonly sentenceTokenizer = new natural.SentenceTokenizer();
-  private static readonly tfidf = new natural.TfIdf();
+  
+  // Initialize TfIdf with an empty document to satisfy TypeScript
+  private static initTfIdf(): natural.TfIdf {
+    const tfidf = new natural.TfIdf();
+    tfidf.addDocument('');  // Add empty document to initialize
+    return tfidf;
+  }
+  
+  private static readonly tfidf = TranscriptProcessor.initTfIdf();
 
   static async process(text: string): Promise<ProcessedTranscript> {
     // Clean and normalize text
@@ -147,8 +160,9 @@ export class TranscriptProcessor {
     const readingLevel = this.calculateReadingLevel(words.length, sentences, syllables);
 
     // Extract topics using TF-IDF
-    this.tfidf.addDocument(text);
-    const topics = this.extractTopics();
+    const tfidf = this.initTfIdf(); // Create new instance for each analysis
+    tfidf.addDocument(text);
+    const topics = this.extractTopics(tfidf);
 
     // Analyze sentiment
     const sentiment = this.analyzeSentiment(doc);
@@ -186,9 +200,9 @@ export class TranscriptProcessor {
     return 'Very Difficult';
   }
 
-  private static extractTopics(): string[] {
+  private static extractTopics(tfidf: natural.TfIdf): string[] {
     const topics: string[] = [];
-    this.tfidf.listTerms(0).slice(0, 5).forEach(item => {
+    tfidf.listTerms(0).slice(0, 5).forEach((item: TfIdfItem) => {
       topics.push(item.term);
     });
     return topics;

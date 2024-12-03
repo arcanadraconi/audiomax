@@ -10,8 +10,6 @@ export class PlayHTWebSocket {
   private onProgress: (progress: WebSocketProgress) => void;
   private onComplete: (audioUrl: string) => void;
   private onError: (error: string) => void;
-  private apiKey: string;
-  private userId: string;
   private chunks: Uint8Array[] = [];
   private isConnecting: boolean = false;
   private reconnectAttempts: number = 0;
@@ -23,14 +21,12 @@ export class PlayHTWebSocket {
   private readonly AUDIO_TIMEOUT = 30000; // 30 seconds timeout
 
   private constructor(
-    apiKey: string,
-    userId: string,
+    private readonly apiKey: string,
+    private readonly userId: string,
     onProgress: (progress: WebSocketProgress) => void,
     onComplete: (audioUrl: string) => void,
     onError: (error: string) => void
   ) {
-    this.apiKey = apiKey;
-    this.userId = userId;
     this.onProgress = onProgress;
     this.onComplete = onComplete;
     this.onError = onError;
@@ -55,7 +51,9 @@ export class PlayHTWebSocket {
       const response = await fetch('http://localhost:3001/api/websocket-auth', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+          'X-User-ID': this.userId
         }
       });
 
@@ -275,7 +273,9 @@ export class PlayHTWebSocket {
         text,
         voice: voiceId,
         output_format: 'mp3',
-        temperature: 0.7
+        temperature: 0.7,
+        apiKey: this.apiKey,
+        userId: this.userId
       };
 
       // Log the full request for debugging

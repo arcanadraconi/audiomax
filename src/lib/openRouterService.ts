@@ -23,7 +23,6 @@ export class OpenRouterService {
   private static readonly MODEL = 'google/gemini-flash-1.5-8b';  // Using a faster model
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
-  private static readonly TARGET_WORDS = OpenRouterService.TARGET_DURATION * OpenRouterService.WORDS_PER_MINUTE; // 2250 words
   private static readonly MIN_WORDS = 2500; // Minimum words needed for 15 minutes
   private static readonly MIN_CHUNK_WORDS = 700; // Minimum words per chunk
   private static readonly MAX_CHUNK_WORDS = 1000; // Maximum words per chunk

@@ -26,7 +26,7 @@ export class ParallelAudioGenerator {
 
   constructor(
     maxConcurrent = 2, // Reduced concurrent processing for larger chunks
-    onProgress = (progress: { overall: number, chunks: GenerationProgress[] }) => {}
+    onProgress = (_progress: { overall: number, chunks: GenerationProgress[] }) => {}
   ) {
     this.onProgress = onProgress;
     this.chunkProgress = new Map();

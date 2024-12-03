@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { TranscriptProcessor } from '../../lib/services/transcriptProcessor';
 import { ParallelAudioGenerator } from '../../lib/services/parallelAudioGenerator';
 import { AudioAssembler } from '../../lib/services/audioAssembler';
-import { Button } from '../ui/button';
 import { AudioPlayer } from './AudioPlayer';
 
 // Voice ID for generation (Play3.0-mini compatible)
@@ -15,7 +14,6 @@ export function AudioProcessingDemo() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [chunks, setChunks] = useState<any[]>([]);
   const [currentTranscript, setCurrentTranscript] = useState('');
 
   const processText = async (text: string) => {
@@ -25,7 +23,6 @@ export function AudioProcessingDemo() {
       setProgress(0);
       setError(null);
       setAudioUrl(null);
-      setChunks([]);
 
       // Store the transcript
       setCurrentTranscript(text);
@@ -33,7 +30,6 @@ export function AudioProcessingDemo() {
       // Step 1: Process text into chunks
       console.log('Starting text processing...');
       const processedChunks = TranscriptProcessor.processText(text);
-      setChunks(processedChunks);
       
       // Log chunk information
       console.log(`Split into ${processedChunks.length} chunks:`);
@@ -71,14 +67,6 @@ export function AudioProcessingDemo() {
           setProgress(progress.progress);
           console.log(`Assembly progress: ${progress.phase} - ${progress.progress.toFixed(2)}%`);
         });
-
-        // Create array of audio blobs
-        const audioBlobs = await Promise.all(
-          generatedUrls.map(async url => {
-            const response = await fetch(url);
-            return response.blob();
-          })
-        );
 
         const combinedBlob = await assembler.combineAudioUrls(generatedUrls);
         const finalUrl = URL.createObjectURL(combinedBlob);
@@ -123,7 +111,7 @@ export function AudioProcessingDemo() {
           isGenerating={processingState === 'transcribing' || processingState === 'generating'}
           generationProgress={progress}
           onRegenerateClick={processText}
-          transcript={currentTranscript}  // Pass the current transcript
+          transcript={currentTranscript}
         />
       </div>
     </div>

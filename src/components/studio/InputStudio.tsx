@@ -48,17 +48,13 @@ export function InputStudio() {
   const [isLibraryMode, setIsLibraryMode] = useState(true);
   const [selectedVoice, setSelectedVoice] = useState<PlayHTVoice | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationPhase, setGenerationPhase] = useState<'context_adjustment' | 'generating_audio' | 'complete'>('context_adjustment');
-  const [generationProgress, setGenerationProgress] = useState<number>(0);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
-  const [currentTranscript, setCurrentTranscript] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const webSocketRef = useRef<PlayHTWebSocket | null>(null);
 
   // Use the audio processing hook
   const {
-    processText: processAudio,
     isProcessing: isProcessingAudio,
     error: audioError,
   } = useAudioProcessing();
@@ -152,8 +148,6 @@ export function InputStudio() {
 
     setError('');
     setIsGenerating(true);
-    setGenerationPhase('context_adjustment');
-    setGenerationProgress(0);
 
     // Dispatch audio generation start event
     window.dispatchEvent(new CustomEvent('audioGenerationStart'));
@@ -171,22 +165,15 @@ export function InputStudio() {
       const titleResult = await OpenRouterService.generateTitle(result.fullText);
       console.log('Title generated:', titleResult);
 
-      // Store the transcript
-      setCurrentTranscript(result.fullText);
-
       // Update word count and duration
       setEstimatedDuration(result.estimatedDuration);
       setTotalWordCount(result.fullText.split(/\s+/).length);
-
-      // Switch to audio generation phase
-      setGenerationPhase('generating_audio');
 
       // Get WebSocket instance
       webSocketRef.current = PlayHTWebSocket.getInstance(
         env.playht.secretKey,
         env.playht.userId,
         (progress) => {
-          setGenerationProgress(progress.progress);
           // Dispatch progress event
           window.dispatchEvent(new CustomEvent('audioGenerationProgress', {
             detail: { progress: progress.progress }
@@ -204,15 +191,12 @@ export function InputStudio() {
               chunkIndex: 0
             }
           }));
-          setGenerationPhase('complete');
           setIsGenerating(false);
         },
         (error) => {
           console.error('WebSocket error:', error);
           setError(error);
           setIsGenerating(false);
-          setGenerationPhase('context_adjustment');
-          setGenerationProgress(0);
         }
       );
 
@@ -230,8 +214,6 @@ export function InputStudio() {
       console.error('Error details:', errorMessage);
       setError(errorMessage);
       setIsGenerating(false);
-      setGenerationPhase('context_adjustment');
-      setGenerationProgress(0);
     }
   };
 

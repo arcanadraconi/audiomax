@@ -15,7 +15,6 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -126,7 +125,6 @@ export function VoiceSearch({ isLibraryMode, onVoiceSelect }: VoiceSearchProps) 
       gender: voice.gender,
       accent: voice.accent
     });
-    setSelectedVoice(voice);
     onVoiceSelect(voice);
     setSearchTerm('');
     setShowDropdown(false);

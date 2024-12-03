@@ -1,4 +1,5 @@
 name: audiomax
+region: nyc
 services:
 - name: api
   github:
@@ -9,16 +10,17 @@ services:
     npm ci
     npm run build
   run_command: cd server && node index.js
+  environment_slug: node-js
   envs:
   - key: NODE_ENV
+    scope: RUN_AND_BUILD_TIME
     value: production
-    scope: RUN_AND_BUILD_TIME
   - key: PORT
+    scope: RUN_AND_BUILD_TIME
     value: "3001"
-    scope: RUN_AND_BUILD_TIME
   - key: ALLOWED_ORIGIN
-    value: "https://audiomax-jo3yc.ondigitalocean.app,https://audiomax.ai"
     scope: RUN_AND_BUILD_TIME
+    value: "https://audiomax-jo3yc.ondigitalocean.app,https://audiomax.ai"
   - key: PLAYHT_SECRET_KEY
     scope: RUN_AND_BUILD_TIME
     type: SECRET
@@ -28,7 +30,11 @@ services:
   http_port: 3001
   instance_count: 1
   instance_size_slug: basic-xxs
-  routes:
-  - path: /
   source_dir: /
-  environment_slug: node-js
+ingress:
+  rules:
+  - component:
+      name: api
+    match:
+      path:
+        prefix: /

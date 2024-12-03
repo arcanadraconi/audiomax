@@ -12,8 +12,8 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // Initialize credentials
-const apiKey = process.env.PLAYHT_SECRET_KEY;
-const userId = process.env.PLAYHT_USER_ID;
+const apiKey = process.env.VITE_PLAYHT_SECRET_KEY;
+const userId = process.env.VITE_PLAYHT_USER_ID;
 
 console.log('Initializing with:', {
   apiKey: apiKey ? `${apiKey.substring(0, 10)}...` : 'missing',

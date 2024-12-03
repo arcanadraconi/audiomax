@@ -19,6 +19,8 @@ export class PlayHTWebSocket {
   private reconnectDelay: number = 2000; // 2 seconds
   private connectionPromise: Promise<void> | null = null;
   private currentVoiceId: string | null = null;
+  private audioTimeout: NodeJS.Timeout | null = null;
+  private readonly AUDIO_TIMEOUT = 30000; // 30 seconds timeout
 
   private constructor(
     apiKey: string,
@@ -66,7 +68,7 @@ export class PlayHTWebSocket {
       return data.websocket_url;
     } catch (error) {
       console.error('Error getting WebSocket URL:', error);
-      throw error;
+      throw error instanceof Error ? error : new Error('Failed to get WebSocket URL');
     }
   }
 
@@ -89,8 +91,17 @@ export class PlayHTWebSocket {
         const url = await this.getWebSocketUrl();
         this.ws = new WebSocket(url);
 
+        // Set up connection timeout
+        const connectionTimeout = setTimeout(() => {
+          if (this.ws?.readyState !== WebSocket.OPEN) {
+            this.ws?.close();
+            reject(new Error('WebSocket connection timeout'));
+          }
+        }, 10000); // 10 second connection timeout
+
         this.ws.onopen = () => {
           console.log('WebSocket connected successfully');
+          clearTimeout(connectionTimeout);
           this.isConnecting = false;
           this.reconnectAttempts = 0;
           this.connectionPromise = null;
@@ -107,6 +118,11 @@ export class PlayHTWebSocket {
 
         this.ws.onmessage = (event) => {
           try {
+            // Reset audio timeout on any message
+            if (this.audioTimeout) {
+              clearTimeout(this.audioTimeout);
+            }
+            
             if (event.data instanceof Blob) {
               // Handle binary audio data
               const reader = new FileReader();
@@ -114,7 +130,7 @@ export class PlayHTWebSocket {
                 const arrayBuffer = reader.result as ArrayBuffer;
                 const chunk = new Uint8Array(arrayBuffer);
                 this.chunks.push(chunk);
-                console.log('Received audio chunk for voice:', this.currentVoiceId);
+                console.log('Received audio chunk for voice:', this.currentVoiceId, 'Size:', chunk.length);
                 
                 // Update progress
                 this.onProgress({
@@ -130,23 +146,35 @@ export class PlayHTWebSocket {
 
               if ('request_id' in message) {
                 console.log('Audio generation completed with voice:', this.currentVoiceId);
-                this.finalizeAudio();
+                // Set a timeout to ensure we receive all audio chunks
+                this.audioTimeout = setTimeout(() => this.finalizeAudio(), 2000);
+              }
+
+              if ('error' in message) {
+                this.onError(`PlayHT Error: ${message.error}`);
               }
             }
           } catch (error) {
-            console.error('Error processing WebSocket message:', error);
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error processing WebSocket message';
+            console.error('Error processing WebSocket message:', errorMessage);
+            this.onError(`Failed to process WebSocket message: ${errorMessage}`);
           }
         };
 
-        this.ws.onclose = () => {
-          console.log('WebSocket closed');
+        this.ws.onclose = (event) => {
+          console.log('WebSocket closed:', event.code, event.reason);
           this.isConnecting = false;
           this.connectionPromise = null;
-          this.finalizeAudio();
+          
+          if (this.chunks.length > 0) {
+            this.finalizeAudio();
+          } else {
+            this.onError('WebSocket closed before receiving any audio data');
+          }
         };
 
-        this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+        this.ws.onerror = (event) => {
+          console.error('WebSocket error:', event);
           this.isConnecting = false;
           this.connectionPromise = null;
 
@@ -156,15 +184,16 @@ export class PlayHTWebSocket {
             setTimeout(() => this.connect(), this.reconnectDelay);
           } else {
             this.onError('WebSocket connection failed after multiple attempts');
-            reject(error);
+            reject(new Error('WebSocket connection failed'));
           }
         };
 
       } catch (error) {
-        console.error('Error connecting to WebSocket:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error connecting to WebSocket';
+        console.error('Error connecting to WebSocket:', errorMessage);
         this.isConnecting = false;
         this.connectionPromise = null;
-        reject(error);
+        reject(new Error(errorMessage));
       }
     });
 
@@ -172,52 +201,81 @@ export class PlayHTWebSocket {
   }
 
   private finalizeAudio() {
+    if (this.audioTimeout) {
+      clearTimeout(this.audioTimeout);
+      this.audioTimeout = null;
+    }
+
     if (this.chunks.length === 0) {
-      this.onError('No audio data received');
+      this.onError('No audio data received. Please check your internet connection and try again.');
       return;
     }
 
-    // Combine chunks
-    const totalLength = this.chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-    const combinedArray = new Uint8Array(totalLength);
-    let offset = 0;
+    try {
+      // Combine chunks
+      const totalLength = this.chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+      const combinedArray = new Uint8Array(totalLength);
+      let offset = 0;
 
-    for (const chunk of this.chunks) {
-      combinedArray.set(chunk, offset);
-      offset += chunk.length;
+      for (const chunk of this.chunks) {
+        combinedArray.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Validate combined array
+      if (totalLength === 0 || offset === 0) {
+        throw new Error('Invalid audio data');
+      }
+
+      // Create final audio blob
+      const blob = new Blob([combinedArray], { type: 'audio/mp3' });
+      const url = URL.createObjectURL(blob);
+
+      console.log('Audio generation complete:', {
+        voice: this.currentVoiceId,
+        chunks: this.chunks.length,
+        totalSize: totalLength
+      });
+
+      this.onProgress({ progress: 100, status: 'complete' });
+      this.onComplete(url);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error finalizing audio';
+      console.error('Error finalizing audio:', errorMessage);
+      this.onError(`Failed to finalize audio: ${errorMessage}`);
+    } finally {
+      // Reset state
+      this.chunks = [];
     }
-
-    // Create final audio blob
-    const blob = new Blob([combinedArray], { type: 'audio/mp3' });
-    const url = URL.createObjectURL(blob);
-
-    console.log('Audio generation complete:', {
-      voice: this.currentVoiceId,
-      chunks: this.chunks.length,
-      totalSize: totalLength
-    });
-
-    this.onProgress({ progress: 100, status: 'complete' });
-    this.onComplete(url);
-
-    // Reset state
-    this.chunks = [];
   }
 
   async generateSpeech(text: string, voiceId: string): Promise<void> {
     try {
+      if (!text || !voiceId) {
+        throw new Error('Text and voice ID are required');
+      }
+
       await this.connect();
 
       // Store and log the exact voice ID being used
       this.currentVoiceId = voiceId;
       console.log('🎙️ Raw voice ID received:', voiceId);
 
+      // Set timeout for audio reception
+      if (this.audioTimeout) {
+        clearTimeout(this.audioTimeout);
+      }
+      this.audioTimeout = setTimeout(() => {
+        this.onError('Audio generation timed out. Please try again.');
+        this.disconnect();
+      }, this.AUDIO_TIMEOUT);
+
       // Create the message with exact voice parameter name as per documentation
       const message = {
         text,
-        voice: voiceId, // Changed from voice_id to voice as per documentation
+        voice: voiceId,
         output_format: 'mp3',
-        temperature: 0.7 // Added as per documentation example
+        temperature: 0.7
       };
 
       // Log the full request for debugging
@@ -231,12 +289,18 @@ export class PlayHTWebSocket {
         this.messageQueue.push(message);
       }
     } catch (error) {
-      console.error('Error in generateSpeech:', error);
-      this.onError('Failed to generate speech');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error generating speech';
+      console.error('Error in generateSpeech:', errorMessage);
+      this.onError(`Failed to generate speech: ${errorMessage}`);
     }
   }
 
   disconnect() {
+    if (this.audioTimeout) {
+      clearTimeout(this.audioTimeout);
+      this.audioTimeout = null;
+    }
+    
     if (this.ws) {
       this.ws.close();
       this.ws = null;

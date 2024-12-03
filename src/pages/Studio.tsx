@@ -36,14 +36,12 @@ interface AudioGenerationEvent {
 export default function Studio() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<Voice | null>(null);
   const [generatedAudioUrl, setGeneratedAudioUrl] = useState<string | null>(null);
   const [audioTitle, setAudioTitle] = useState<string>('Generated audio');
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [showDemo, setShowDemo] = useState(false);
   const [transcript, setTranscript] = useState<string>('');
-  const [audioChunks, setAudioChunks] = useState<AudioGenerationEvent[]>([]);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -59,13 +57,6 @@ export default function Studio() {
     // Add event listener for audio generation
     const handleAudioGenerated = (event: CustomEvent<AudioGenerationEvent>) => {
       const { url, title, transcript: newTranscript, totalChunks, chunkIndex } = event.detail;
-
-      // Store the chunk
-      setAudioChunks(prev => {
-        const newChunks = [...prev];
-        newChunks[chunkIndex] = event.detail;
-        return newChunks;
-      });
 
       // If this is the first chunk, set the transcript
       if (chunkIndex === 0 && newTranscript) {
@@ -89,7 +80,6 @@ export default function Studio() {
     const handleAudioGenerationStart = () => {
       setIsGeneratingAudio(true);
       setGenerationProgress(0);
-      setAudioChunks([]);
     };
 
     // Add event listener for audio generation progress
@@ -115,9 +105,9 @@ export default function Studio() {
   }, [generatedAudioUrl]);
 
   const handleVoiceSelect = (voice: Voice) => {
-    setSelectedVoice(voice);
+    // Handle voice selection logic here
+    console.log('Selected voice:', voice);
   };
-
 
   return (
     <div className="w-full top-0 text-white font-sans">
@@ -179,7 +169,7 @@ export default function Studio() {
               </div>
             </div>
 
-            {/* Demo Toggle 
+            {/* Demo Toggle */}
             <div className="px-3 mt-4">
               <Button
                 variant="outline"
@@ -188,7 +178,7 @@ export default function Studio() {
               >
                 {showDemo ? 'Hide Processing Demo' : 'Show Processing Demo'}
               </Button>
-            </div>*/}
+            </div>
 
             {/* Processing Demo */}
             {showDemo && (

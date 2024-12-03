@@ -179,7 +179,7 @@ export default function Studio() {
               </div>
             </div>
 
-            {/* Demo Toggle */}
+            {/* Demo Toggle 
             <div className="px-3 mt-4">
               <Button
                 variant="outline"
@@ -188,7 +188,7 @@ export default function Studio() {
               >
                 {showDemo ? 'Hide Processing Demo' : 'Show Processing Demo'}
               </Button>
-            </div>
+            </div>*/}
 
             {/* Processing Demo */}
             {showDemo && (

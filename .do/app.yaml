@@ -9,7 +9,7 @@ services:
   build_command: |
     npm install -g typescript
     npm ci
-    npm i -D @types/react-dom @types/firebase
+    npm i -D @types/react-dom @types/firebase @types/jest
     npm run build
   run_command: cd server && node index.js
   environment_slug: node-js

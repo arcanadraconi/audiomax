@@ -17,7 +17,29 @@ console.log('Initializing with:', {
 
 // CORS configuration
 const corsOptions = {
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+  // Allow requests from any origin in development, or specific origins in production
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      // Local development
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:5174',
+      // Add your production domains here
+      process.env.ALLOWED_ORIGIN, // From environment variable
+    ].filter(Boolean); // Remove any undefined values
+    
+    // Check if the origin is allowed
+    if (process.env.NODE_ENV === 'development' || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-User-ID'],
   credentials: true
@@ -208,5 +230,8 @@ app.use((err, req, res, next) => {
 // Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
-  console.log(`CORS enabled for:`, corsOptions.origin);
+  console.log('CORS configuration:', {
+    development: process.env.NODE_ENV === 'development' ? 'All origins allowed' : 'Specific origins only',
+    allowedOrigins: corsOptions.origin
+  });
 });

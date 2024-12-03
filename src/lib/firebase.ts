@@ -18,7 +18,7 @@ const auth = getAuth(app);
 
 // Initialize Analytics only if supported and in production
 let analytics = null;
-if (import.meta.env.PROD) {
+if ((import.meta.env as any).PROD) {
   isSupported().then(supported => {
     if (supported) {
       analytics = getAnalytics(app);

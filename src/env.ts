@@ -23,15 +23,5 @@ export const env = {
   },
   stripe: {
     publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY,
-    prices: {
-      pro: {
-        monthly: import.meta.env.VITE_STRIPE_PRICE_ID_PRO_MONTHLY,
-        yearly: import.meta.env.VITE_STRIPE_PRICE_ID_PRO_YEARLY,
-      },
-      premium: {
-        monthly: import.meta.env.VITE_STRIPE_PRICE_ID_PREMIUM_MONTHLY,
-        yearly: import.meta.env.VITE_STRIPE_PRICE_ID_PREMIUM_YEARLY,
-      },
-    },
   },
 };

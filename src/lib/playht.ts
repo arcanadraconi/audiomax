@@ -57,6 +57,14 @@ class PlayHTClient {
     console.log('PlayHT client initialized with baseUrl:', this.baseUrl);
   }
 
+  private getHeaders() {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${import.meta.env.VITE_PLAYHT_SECRET_KEY}`,
+      'X-User-ID': import.meta.env.VITE_PLAYHT_USER_ID
+    };
+  }
+
   async getVoices(): Promise<Voice[]> {
     try {
       // Check cache first
@@ -67,7 +75,11 @@ class PlayHTClient {
       }
 
       console.log('Fetching voices from server');
-      const response = await fetch(`${this.baseUrl}/voices`);
+      const response = await fetch(`${this.baseUrl}/voices`, {
+        headers: this.getHeaders(),
+        credentials: 'include'
+      });
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch voices: ${response.statusText}`);
       }
@@ -184,6 +196,8 @@ class PlayHTClient {
 
       const response = await fetch(`${this.baseUrl}/clone`, {
         method: 'POST',
+        headers: this.getHeaders(),
+        credentials: 'include',
         body: formData
       });
 
@@ -201,7 +215,11 @@ class PlayHTClient {
   async getClonedVoices(): Promise<Voice[]> {
     try {
       console.log('Fetching cloned voices');
-      const response = await fetch(`${this.baseUrl}/cloned-voices`);
+      const response = await fetch(`${this.baseUrl}/cloned-voices`, {
+        headers: this.getHeaders(),
+        credentials: 'include'
+      });
+      
       if (!response.ok) {
         throw new Error(`Failed to fetch cloned voices: ${response.statusText}`);
       }

@@ -62,8 +62,8 @@ class PlayHTClient {
   private getHeaders() {
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${import.meta.env.VITE_PLAYHT_SECRET_KEY}`,
-      'X-User-ID': import.meta.env.VITE_PLAYHT_USER_ID
+      'Authorization': `Bearer ${(import.meta.env as any).VITE_PLAYHT_SECRET_KEY}`,
+      'X-User-ID': (import.meta.env as any).VITE_PLAYHT_USER_ID
     };
   }
 
@@ -83,10 +83,16 @@ class PlayHTClient {
       });
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch voices: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('PlayHT API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        });
+        throw new Error(`Failed to fetch voices: ${response.statusText} - ${errorText}`);
       }
-      const data = await response.json();
 
+      const data = await response.json();
       console.log('Raw voices response:', data);
       const voices = data?.voices || [];
       

@@ -144,7 +144,9 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
       )}
 
       {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (
-        <div className="fixed left-0 right-0 bottom-16 md:absolute md:bottom-auto md:mt-2 z-50">
+       <div
+       className="force-dropdown-below bg-[#1a1a4d]/95 rounded-lg border text-sm border-white/10"
+     >
           <div className="mx-4 md:mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
             <div className="max-h-[calc(3*2.5rem)] overflow-y-auto">
               {filteredVoices.map((voice, index) => (

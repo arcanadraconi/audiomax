@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3001;
+const isDev = process.env.NODE_ENV === 'development';
 
 // Initialize credentials
 const apiKey = process.env.PLAYHT_SECRET_KEY;
@@ -46,7 +47,7 @@ const corsOptions = {
     ];
     
     // In development mode, allow all origins
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       console.log('Development mode, allowing all origins');
       callback(null, true);
       return;
@@ -73,8 +74,18 @@ app.use(express.json());
 // Pre-flight requests
 app.options('*', cors(corsOptions));
 
-// Serve static files from the dist directory
-app.use(express.static(path.join(__dirname, '../dist')));
+// In development, proxy requests to Vite dev server
+if (isDev) {
+  const { createProxyMiddleware } = await import('http-proxy-middleware');
+  app.use('/', createProxyMiddleware({
+    target: 'http://localhost:5173',
+    changeOrigin: true,
+    ws: true
+  }));
+} else {
+  // In production, serve static files from the dist directory
+  app.use(express.static(path.join(__dirname, '../dist')));
+}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -260,7 +271,13 @@ app.get('/api/cloned-voices', async (req, res) => {
 
 // Serve index.html for all other routes (SPA support)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
+  if (isDev) {
+    // In development, proxy to Vite dev server
+    res.redirect('http://localhost:5173' + req.url);
+  } else {
+    // In production, serve the built index.html
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+  }
 });
 
 // Error handling middleware
@@ -276,7 +293,7 @@ app.use((err, req, res, next) => {
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
   console.log('CORS configuration:', {
-    development: process.env.NODE_ENV === 'development' ? 'All origins allowed' : 'Specific origins only',
+    development: isDev ? 'All origins allowed' : 'Specific origins only',
     allowedOrigins: corsOptions.origin
   });
 });

@@ -43,9 +43,12 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
       
       console.log(`Fetched ${voiceList.length} voices`);
 
-      // Remove duplicates based on voice ID
+      // Remove duplicates based on voice ID and name
       const uniqueVoices = voiceList.reduce((acc: Voice[], current) => {
-        const exists = acc.find(voice => voice.id === current.id);
+        const exists = acc.find(voice => 
+          voice.id === current.id || 
+          voice.name.toLowerCase() === current.name.toLowerCase()
+        );
         if (!exists) {
           acc.push(current);
         }
@@ -119,14 +122,9 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
     return `${voice.id}-${voice.name}-${voice.language}-${index}`;
   };
 
-  const getVoiceDescription = (voice: Voice) => {
-    const traits = [
-      voice.gender?.toLowerCase(),
-      voice.age?.toLowerCase(),
-      voice.style?.toLowerCase(),
-      voice.tempo?.toLowerCase()
-    ].filter(Boolean);
-    return traits.join(', ');
+  const formatLanguage = (language: string) => {
+    // Remove country codes and parentheses
+    return language.replace(/\([^)]*\)/g, '').replace(/\s*\w{2}$/, '').trim();
   };
 
   const handleRetry = () => {
@@ -163,17 +161,22 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
       )}
 
       {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50">
+        <div
+        className="absolute left-0 right-0 z-50 top-full mt-2"
+        style={{ top: '100%', marginTop: '0.5rem' }}
+      >
           <div className="mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
             <div className="max-h-[calc(3*4rem)] overflow-y-auto">
               {filteredVoices.map((voice, index) => (
                 <div
                   key={getVoiceKey(voice, index)}
                   onClick={() => handleVoiceSelect(voice)}
-                  className="flex flex-col px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
+                  className="grid grid-cols-4 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
                 >
                   <div className="text-white/80">{voice.name}</div>
-                  <div className="text-white/60 text-xs mt-0.5">{getVoiceDescription(voice)}</div>
+                  <div className="text-white/60">{voice.gender}</div>
+                  <div className="text-white/60">{voice.accent}</div>
+                  <div className="text-white/60">{formatLanguage(voice.language)}</div>
                 </div>
               ))}
             </div>

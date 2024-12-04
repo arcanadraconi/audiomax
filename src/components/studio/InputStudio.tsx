@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
-import { Paperclip, Camera, Mic, X, ChevronDown } from 'lucide-react';
+import { Paperclip, Camera, Mic, X, ChevronDown, Volume2 } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
+import { VoiceLibrary } from './favorites';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
@@ -221,6 +222,11 @@ export function InputStudio() {
 
   const clearSelectedVoice = () => {
     setSelectedVoice(null);
+    // Show voice search dropdown when clearing selection
+    const searchInput = document.querySelector('input[placeholder*="Search voice"]') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.focus();
+    }
   };
 
   const handleGenerateClick = async () => {
@@ -470,7 +476,7 @@ export function InputStudio() {
         />
 
         {selectedVoice && (
-          <div className="mt-4 px-4 py-2 bg-white/10 rounded-md relative group">
+          <div className="mt-4 px-4 py-3 bg-white/10 rounded-md relative group">
             <button
               onClick={clearSelectedVoice}
               className="absolute -top-2 -right-2 bg-white/10 hover:bg-white/20 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all duration-200"
@@ -478,9 +484,25 @@ export function InputStudio() {
             >
               <X className="h-3 w-3 text-white" />
             </button>
-            <div className="text-white/80 text-md font-normal">{selectedVoice.name}</div>
-            <div className="text-white/60 text-sm">
-              {selectedVoice.gender}, {selectedVoice.accent}
+            
+            {/* Voice name */}
+            <div className="text-white/80 text-md font-normal mb-2">{selectedVoice.name}</div>
+
+            {/* Voice parameters and play sample */}
+            <div className="flex items-center gap-4 text-sm">
+              <div className="text-white/60">{selectedVoice.gender || 'unknown'}</div>
+              <div className="text-white/60">{selectedVoice.age || 'adult'}</div>
+              <div className="text-white/60">{selectedVoice.style || 'normal'}</div>
+              <div className="text-white/60">{selectedVoice.tempo || 'neutral'}</div>
+              {selectedVoice.sample && (
+                <button
+                  onClick={() => handlePlaySample(selectedVoice)}
+                  className="p-1 text-white/40 hover:text-white/90 transition-colors"
+                  title="Play sample"
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
         )}

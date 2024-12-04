@@ -210,7 +210,9 @@ export default function Studio() {
           </div>
 
           {/* Middle Column - Main Controls */}
-          <InputStudio />
+          <div className="space-y-6">
+            <InputStudio />
+          </div>
 
           {/* Right Column - Audio Controls */}
           <div className="space-y-6">

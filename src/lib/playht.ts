@@ -53,9 +53,7 @@ class PlayHTClient {
 
   constructor() {
     // Use the appropriate URL based on environment
-    this.baseUrl = (import.meta.env as any).PROD 
-      ? 'https://audiomax-jo3yc.ondigitalocean.app/api'
-      : 'http://localhost:3001/api';
+    this.baseUrl = window.location.origin + '/api';
     console.log('PlayHT client initialized with baseUrl:', this.baseUrl);
   }
 

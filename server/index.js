@@ -39,8 +39,12 @@ const corsOptions = {
       // Local development
       'http://localhost:5173',
       'http://localhost:5174',
+      'http://localhost:5175',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
+      'http://127.0.0.1:5175',
+      'http://localhost:3001',
+      'http://127.0.0.1:3001',
       // Production domains
       'https://audiomax-jo3yc.ondigitalocean.app',
       'https://audiomax.ai'
@@ -73,19 +77,6 @@ app.use(express.json());
 
 // Pre-flight requests
 app.options('*', cors(corsOptions));
-
-// In development, proxy requests to Vite dev server
-if (isDev) {
-  const { createProxyMiddleware } = await import('http-proxy-middleware');
-  app.use('/', createProxyMiddleware({
-    target: 'http://localhost:5173',
-    changeOrigin: true,
-    ws: true
-  }));
-} else {
-  // In production, serve static files from the dist directory
-  app.use(express.static(path.join(__dirname, '../dist')));
-}
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -130,7 +121,14 @@ app.post('/api/websocket-auth', async (req, res) => {
     }
 
     const data = await response.json();
-    console.log('WebSocket auth successful');
+    console.log('WebSocket auth response:', data);
+
+    // Ensure we have a valid WebSocket URL
+    if (!data.websocket_url) {
+      throw new Error('No WebSocket URL received from PlayHT');
+    }
+
+    // The websocket_url from the API is already in the correct format
     res.json(data);
   } catch (error) {
     console.error('WebSocket auth error:', error);
@@ -197,6 +195,10 @@ app.get('/api/voices', async (req, res) => {
       voiceEngine: voice.is_cloned ? 'PlayHT2.0' : 'Play3.0-mini'
     }));
 
+    // Log voice languages for debugging
+    const languages = [...new Set(voices.map(v => v.language))].sort();
+    console.log('Available languages:', languages);
+
     console.log(`Processed ${voices.length} voices`);
     res.json({ voices });
   } catch (error) {
@@ -241,6 +243,7 @@ app.get('/api/cloned-voices', async (req, res) => {
     const voiceArray = Array.isArray(data) ? data : (data.voices || []);
     
     // Map the voices to match our client's expected format
+    // Include user_id from the API response
     const voices = voiceArray.map(voice => ({
       id: voice.id,
       name: voice.name,
@@ -255,7 +258,8 @@ app.get('/api/cloned-voices', async (req, res) => {
       tempo: voice.tempo || '',
       texture: voice.texture || '',
       is_cloned: true,
-      voiceEngine: 'PlayHT2.0'
+      voiceEngine: 'PlayHT2.0',
+      user_id: voice.user_id || voice.userId || userId // Include user_id from response or fallback to current user
     }));
 
     console.log(`Processed ${voices.length} cloned voices`);
@@ -269,9 +273,34 @@ app.get('/api/cloned-voices', async (req, res) => {
   }
 });
 
+// In development, proxy non-API requests to Vite dev server
+if (isDev) {
+  const { createProxyMiddleware } = await import('http-proxy-middleware');
+  app.use('/', (req, res, next) => {
+    // Skip proxy for API routes
+    if (req.url.startsWith('/api/')) {
+      next();
+      return;
+    }
+    createProxyMiddleware({
+      target: 'http://localhost:5173',
+      changeOrigin: true,
+      ws: true
+    })(req, res, next);
+  });
+} else {
+  // In production, serve static files from the dist directory
+  app.use(express.static(path.join(__dirname, '../dist')));
+}
+
 // Serve index.html for all other routes (SPA support)
 app.get('*', (req, res) => {
   if (isDev) {
+    // Skip for API routes
+    if (req.url.startsWith('/api/')) {
+      next();
+      return;
+    }
     // In development, proxy to Vite dev server
     res.redirect('http://localhost:5173' + req.url);
   } else {

@@ -67,7 +67,12 @@ export class PlayHTWebSocket {
       }
 
       const data = await response.json();
-      console.log('WebSocket URL received');
+      console.log('WebSocket auth response:', data);
+
+      if (!data.websocket_url) {
+        throw new Error('No WebSocket URL in server response');
+      }
+
       return data.websocket_url;
     } catch (error) {
       console.error('Error getting WebSocket URL:', error);
@@ -92,6 +97,11 @@ export class PlayHTWebSocket {
     this.connectionPromise = new Promise(async (resolve, reject) => {
       try {
         const url = await this.getWebSocketUrl();
+        if (!url) {
+          throw new Error('No WebSocket URL received');
+        }
+
+        console.log('Attempting WebSocket connection to:', url);
         this.ws = new WebSocket(url);
 
         // Set up connection timeout
@@ -273,14 +283,13 @@ export class PlayHTWebSocket {
         this.disconnect();
       }, this.AUDIO_TIMEOUT);
 
-      // Create the message with exact voice parameter name as per documentation
+      // Create the message according to Play3.0-mini requirements
       const message = {
         text,
         voice: voiceId,
         output_format: 'mp3',
-        temperature: 0.7,
-        apiKey: this.apiKey,
-        userId: this.userId
+        voice_engine: 'Play3.0-mini',
+        quality: 'premium'
       };
 
       // Log the full request for debugging

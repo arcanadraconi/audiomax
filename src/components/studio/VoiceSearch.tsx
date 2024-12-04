@@ -43,8 +43,17 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
       
       console.log(`Fetched ${voiceList.length} voices`);
 
+      // Remove duplicates based on voice ID
+      const uniqueVoices = voiceList.reduce((acc: Voice[], current) => {
+        const exists = acc.find(voice => voice.id === current.id);
+        if (!exists) {
+          acc.push(current);
+        }
+        return acc;
+      }, []);
+
       // Sort voices by name
-      const sortedVoices = voiceList.sort((a, b) => a.name.localeCompare(b.name));
+      const sortedVoices = uniqueVoices.sort((a, b) => a.name.localeCompare(b.name));
       setVoices(sortedVoices);
       setFilteredVoices(sortedVoices);
     } catch (err) {
@@ -144,11 +153,9 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
       )}
 
       {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (
-       <div
-       className="force-dropdown-below bg-[#1a1a4d]/95 rounded-lg border text-sm border-white/10"
-     >
-          <div className="mx-4 md:mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
-            <div className="max-h-[calc(3*2.5rem)] overflow-y-auto">
+        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50">
+          <div className="mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
+            <div className="max-h-[calc(3*4rem)] overflow-y-auto">
               {filteredVoices.map((voice, index) => (
                 <div
                   key={getVoiceKey(voice, index)}

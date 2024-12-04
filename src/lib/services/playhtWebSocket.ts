@@ -45,10 +45,14 @@ export class PlayHTWebSocket {
     return PlayHTWebSocket.instance;
   }
 
+  private getBaseUrl(): string {
+    return window.location.origin + '/api';
+  }
+
   private async getWebSocketUrl(): Promise<string> {
     try {
       console.log('Getting WebSocket auth from server...');
-      const response = await fetch('http://localhost:3001/api/websocket-auth', {
+      const response = await fetch(`${this.getBaseUrl()}/websocket-auth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -58,7 +62,8 @@ export class PlayHTWebSocket {
       });
 
       if (!response.ok) {
-        throw new Error(`WebSocket auth failed: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`WebSocket auth failed: ${response.statusText} - ${errorText}`);
       }
 
       const data = await response.json();

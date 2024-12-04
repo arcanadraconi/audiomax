@@ -160,11 +160,17 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
         </div>
       )}
 
+      {!isLibraryMode && !isLoading && !error && voices.length === 0 && (
+        <div className="mt-2 px-4 py-3 bg-white/5 rounded-lg text-white/60 text-sm">
+          No voice clones generated yet. Create your first voice clone to get started.
+        </div>
+      )}
+
       {showDropdown && !isLoading && !error && filteredVoices.length > 0 && (
         <div
-        className="absolute left-0 right-0 z-50 top-full mt-2"
-        style={{ top: '100%', marginTop: '0.5rem' }}
-      >
+          className="absolute left-0 right-0 z-50 top-full mt-2"
+          style={{ top: '100%', marginTop: '0.5rem' }}
+        >
           <div className="mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
             <div className="max-h-[calc(3*4rem)] overflow-y-auto">
               {filteredVoices.map((voice, index) => (

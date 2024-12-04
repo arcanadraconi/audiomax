@@ -1,16 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search } from 'lucide-react';
+import { Search, Star, Volume2 } from 'lucide-react';
 import { playhtClient } from '../../lib/playht';
 import type { Voice } from '../../lib/playht';
 
 interface VoiceSearchProps {
   onVoiceSelect: (voice: Voice) => void;
+  onFavoriteToggle?: (voice: Voice) => void;
+  onPlaySample?: (voice: Voice) => void;
   isLibraryMode?: boolean;
+  favoriteVoices?: Set<string>;
+  voices?: Voice[];
 }
 
-export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearchProps) {
-  const [voices, setVoices] = useState<Voice[]>([]);
-  const [filteredVoices, setFilteredVoices] = useState<Voice[]>([]);
+export function VoiceSearch({ 
+  onVoiceSelect, 
+  onFavoriteToggle,
+  onPlaySample,
+  isLibraryMode = true,
+  favoriteVoices = new Set(),
+  voices: initialVoices = []
+}: VoiceSearchProps) {
+  const [voices, setVoices] = useState<Voice[]>(initialVoices);
+  const [filteredVoices, setFilteredVoices] = useState<Voice[]>(initialVoices);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,12 +188,38 @@ export function VoiceSearch({ onVoiceSelect, isLibraryMode = true }: VoiceSearch
                 <div
                   key={getVoiceKey(voice, index)}
                   onClick={() => handleVoiceSelect(voice)}
-                  className="grid grid-cols-4 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer"
+                  className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer items-center"
                 >
                   <div className="text-white/80">{voice.name}</div>
                   <div className="text-white/60">{voice.gender}</div>
                   <div className="text-white/60">{voice.accent}</div>
                   <div className="text-white/60">{formatLanguage(voice.language)}</div>
+                  {onFavoriteToggle && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onFavoriteToggle(voice);
+                      }}
+                      className="p-1 text-white/40 hover:text-white/90 transition-colors"
+                      title={favoriteVoices.has(voice.id) ? "Remove from favorites" : "Add to favorites"}
+                    >
+                      <Star
+                        className={`h-4 w-4 ${favoriteVoices.has(voice.id) ? 'fill-current text-yellow-400' : ''}`}
+                      />
+                    </button>
+                  )}
+                  {onPlaySample && voice.sample && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onPlaySample(voice);
+                      }}
+                      className="p-1 text-white/40 hover:text-white/90 transition-colors"
+                      title="Play sample"
+                    >
+                      <Volume2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

@@ -1,55 +1,71 @@
-import { useState } from 'react';
+import { Volume2, Star } from 'lucide-react';
+import type { Voice } from '../../lib/playht';
 
-export interface Voice {
-  id: string;
-  name: string;
-  sample: string;
-  accent: string;
-  age: string;
-  gender: string;
-  language: string;
-  language_code: string;
-  loudness: string;
-  style: string;
-  tempo: string;
-  texture: string;
-  is_cloned: boolean;
-  voice_engine: string;
-}
-
-export interface VoiceLibraryProps {
+interface VoiceLibraryProps {
   onVoiceSelect: (voice: Voice) => void;
+  onFavoriteToggle: (voice: Voice) => void;
+  onPlaySample?: (voice: Voice) => void;
+  voices: Voice[];
+  favoriteVoices: Set<string>;
 }
 
-export function VoiceLibrary({ onVoiceSelect }: VoiceLibraryProps) {
-  // This would typically be loaded from user's saved favorites in the database
-  const [favoriteVoices] = useState<Voice[]>([]);
+export function VoiceLibrary({ 
+  onVoiceSelect,
+  onFavoriteToggle,
+  onPlaySample,
+  voices,
+  favoriteVoices
+}: VoiceLibraryProps) {
+  const favoriteVoicesList = voices.filter(voice => favoriteVoices.has(voice.id));
+
+  const formatLanguage = (language: string) => {
+    // Remove country codes and parentheses
+    return language.replace(/\([^)]*\)/g, '').replace(/\s*\w{2}$/, '').trim();
+  };
 
   return (
     <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-white/10">
       <h2 className="text-xl font-medium text-white/80 mb-4">My Favorite Voices</h2>
       
-      {favoriteVoices.length === 0 ? (
+      {favoriteVoicesList.length === 0 ? (
         <div className="text-white/60 text-center py-4">
           No favorite voices yet. Search and add voices to your favorite.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {favoriteVoices.map((voice) => (
-            <button
+        <div className="space-y-2">
+          {favoriteVoicesList.map((voice) => (
+            <div
               key={voice.id}
               onClick={() => onVoiceSelect(voice)}
-              className="flex flex-col p-4 rounded-lg bg-white/10 hover:bg-white/20 transition-colors border border-white/20 text-left"
+              className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer items-center rounded-lg"
             >
-              <span className="text-lg font-medium text-white/90">{voice.name}</span>
-              <span className="text-sm text-white/60">{voice.accent} • {voice.gender}</span>
-              <span className="text-sm text-white/60">{voice.language}</span>
-              {voice.is_cloned && (
-                <span className="mt-2 px-2 py-1 text-xs bg-purple-500/20 text-purple-300 rounded-full self-start">
-                  Cloned Voice
-                </span>
+              <div className="text-white/80">{voice.name}</div>
+              <div className="text-white/60">{voice.gender}</div>
+              <div className="text-white/60">{voice.accent}</div>
+              <div className="text-white/60">{formatLanguage(voice.language)}</div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onFavoriteToggle(voice);
+                }}
+                className="p-1 text-white/40 hover:text-white/90 transition-colors"
+                title="Remove from favorites"
+              >
+                <Star className="h-4 w-4 fill-current text-yellow-400" />
+              </button>
+              {onPlaySample && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlaySample(voice);
+                  }}
+                  className="p-1 text-white/40 hover:text-white/90 transition-colors"
+                  title="Play sample"
+                >
+                  <Volume2 className="h-4 w-4" />
+                </button>
               )}
-            </button>
+            </div>
           ))}
         </div>
       )}

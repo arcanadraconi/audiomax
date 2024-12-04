@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Star, Volume2 } from 'lucide-react';
-import { playhtClient } from '../../lib/playht';
 import type { Voice } from '../../lib/playht';
 import { auth } from '../../lib/firebase';
 
@@ -36,8 +35,11 @@ export function VoiceSearch({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetchVoices();
-  }, [isLibraryMode]);
+    setVoices(initialVoices);
+    setFilteredVoices(initialVoices);
+    const groups = groupVoicesByLanguage(initialVoices);
+    setVoiceGroups(groups);
+  }, [initialVoices]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -49,40 +51,6 @@ export function VoiceSearch({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const fetchVoices = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      console.log('Fetching voices...');
-      const voiceList = isLibraryMode 
-        ? await playhtClient.getVoices()
-        : await playhtClient.getClonedVoices();
-      
-      console.log(`Fetched ${voiceList.length} voices`);
-
-      // Filter cloned voices by user ID if not in library mode
-      const filteredVoices = isLibraryMode 
-        ? voiceList 
-        : voiceList.filter(voice => {
-            const userId = auth.currentUser?.uid;
-            return voice.user_id === userId;
-          });
-
-      setVoices(filteredVoices);
-      setFilteredVoices(filteredVoices);
-      
-      // Group voices by language
-      const groups = groupVoicesByLanguage(filteredVoices);
-      setVoiceGroups(groups);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch voices';
-      console.error('Voice fetch error:', errorMessage);
-      setError('Unable to load voices. Please try refreshing the page.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const groupVoicesByLanguage = (voices: Voice[]): VoiceGroup[] => {
     const groups: { [key: string]: Voice[] } = {};
@@ -136,31 +104,9 @@ export function VoiceSearch({
     setVoiceGroups(groupVoicesByLanguage(filtered));
   };
 
-  const handleVoiceSelect = (voice: Voice) => {
-    console.log('Selected voice:', {
-      name: voice.name,
-      id: voice.id,
-      gender: voice.gender,
-      accent: voice.accent
-    });
-    onVoiceSelect(voice);
-    setSearchTerm('');
-    setShowDropdown(false);
-    setFilteredVoices([]);
-  };
-
-  const getVoiceKey = (voice: Voice) => {
-    // Create a unique key by combining multiple voice properties
-    return `${voice.id}-${voice.name}-${voice.language}`;
-  };
-
   const formatLanguage = (language: string) => {
     // Remove country codes and parentheses
     return language.replace(/\([^)]*\)/g, '').replace(/\s*\w{2}$/, '').trim();
-  };
-
-  const handleRetry = () => {
-    fetchVoices();
   };
 
   return (
@@ -181,28 +127,11 @@ export function VoiceSearch({
       )}
 
       {error && (
-        <div className="mt-2 text-red-400">
-          {error}
-          <button 
-            onClick={handleRetry}
-            className="ml-2 text-blue-400 hover:text-blue-300 underline"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {!isLibraryMode && !isLoading && !error && voices.length === 0 && (
-        <div className="mt-2 px-4 py-3 bg-white/5 rounded-lg text-white/60 text-sm">
-          No voice clones yet. Create your first voice clone to get started.
-        </div>
+        <div className="mt-2 text-red-400">{error}</div>
       )}
 
       {showDropdown && !isLoading && !error && voiceGroups.length > 0 && (
-        <div
-          className="absolute left-0 right-0 z-50 top-full mt-2"
-          style={{ top: '100%', marginTop: '0.5rem' }}
-        >
+        <div className="absolute left-0 right-0 z-50 mt-2">
           <div className="mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
             <div className="max-h-[calc(3*4rem)] overflow-y-auto">
               {voiceGroups.map((group) => (
@@ -212,13 +141,17 @@ export function VoiceSearch({
                   </div>
                   {group.voices.map((voice) => (
                     <div
-                      key={getVoiceKey(voice)}
-                      onClick={() => handleVoiceSelect(voice)}
+                      key={voice.id}
+                      onClick={() => {
+                        onVoiceSelect(voice);
+                        setShowDropdown(false);
+                        setSearchTerm('');
+                      }}
                       className="grid grid-cols-[1fr_auto_auto_auto_auto_auto] gap-2 px-4 py-2 hover:bg-white/10 transition-colors duration-300 cursor-pointer items-center"
                     >
                       <div className="text-white/80">{voice.name}</div>
-                      <div className="text-white/60">{voice.gender}</div>
-                      <div className="text-white/60">{voice.accent}</div>
+                      <div className="text-white/60">{voice.gender || 'unknown'}</div>
+                      <div className="text-white/60">{voice.accent || '-'}</div>
                       <div className="text-white/60">{formatLanguage(voice.language)}</div>
                       {onFavoriteToggle && (
                         <button
@@ -238,6 +171,7 @@ export function VoiceSearch({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            console.log('Playing sample:', voice.sample);
                             onPlaySample(voice);
                           }}
                           className="p-1 text-white/40 hover:text-white/90 transition-colors"

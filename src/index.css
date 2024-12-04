@@ -87,6 +87,17 @@ body {
   border-radius: 0.5rem;
 }
 
+.force-dropdown-below {
+  position: absolute !important;
+  top: 100% !important;
+  margin-top: 0.5rem !important;
+  z-index: 50 !important;
+  left: 0 !important;
+  right: 0 !important;
+  background-color: rgba(26, 26, 77, 0.95); /* Matches your style */
+  border-radius: 0.5rem;
+}
+
 .input-field {
   width: 100%;
   padding: 0.5rem 1rem;

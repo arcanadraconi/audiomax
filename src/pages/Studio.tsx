@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from "../components/ui/button";
 import { InputStudio } from '../components/studio/InputStudio';
@@ -33,6 +33,8 @@ export default function Studio() {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -103,10 +105,7 @@ export default function Studio() {
       if (generatedAudioUrl) {
         URL.revokeObjectURL(generatedAudioUrl);
       }
-      if (currentAudio) {
-        currentAudio.pause();
-        setCurrentAudio(null);
-      }
+      cleanupAudio();
     };
   }, [generatedAudioUrl]);
 
@@ -114,6 +113,23 @@ export default function Studio() {
   useEffect(() => {
     localStorage.setItem(FAVORITE_VOICES_KEY, JSON.stringify(Array.from(favoriteVoices)));
   }, [favoriteVoices]);
+
+  const cleanupAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.src = '';
+      audioRef.current.removeEventListener('ended', () => {});
+      audioRef.current = null;
+    }
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio.src = '';
+      setCurrentAudio(null);
+    }
+    setIsPlaying(false);
+  };
 
   const handleVoiceSelect = (voice: PlayHTVoice) => {
     console.log('Selected voice:', voice);
@@ -132,28 +148,55 @@ export default function Studio() {
     });
   };
 
-  const handlePlaySample = (voice: PlayHTVoice) => {
-    console.log('Playing sample for voice:', voice.name, 'Sample URL:', voice.sample);
-    
-    // Stop any currently playing audio
-    if (currentAudio) {
-      currentAudio.pause();
-      setCurrentAudio(null);
-    }
+  const handlePlaySample = async (voice: PlayHTVoice) => {
+    try {
+      // If already playing, stop current audio
+      if (isPlaying) {
+        cleanupAudio();
+      }
 
-    // Play new sample if available
-    if (voice.sample) {
+      if (!voice.sample) {
+        console.warn('No sample URL available for voice:', voice.name);
+        return;
+      }
+
+      console.log('Playing sample for voice:', voice.name, 'Sample URL:', voice.sample);
+
+      // Create new audio element
       const audio = new Audio(voice.sample);
-      audio.play().catch(error => {
-        console.error('Error playing audio:', error);
-      });
+      audioRef.current = audio;
       setCurrentAudio(audio);
-      
-      // Cleanup after playback ends
-      audio.addEventListener('ended', () => {
-        console.log('Sample playback ended');
-        setCurrentAudio(null);
+
+      // Set up event listeners
+      audio.addEventListener('canplaythrough', () => {
+        console.log('Audio can play through');
+        audio.play()
+          .then(() => {
+            console.log('Audio playback started');
+            setIsPlaying(true);
+          })
+          .catch(error => {
+            console.error('Error playing audio:', error);
+            cleanupAudio();
+          });
       });
+
+      audio.addEventListener('ended', () => {
+        console.log('Audio playback ended');
+        cleanupAudio();
+      });
+
+      audio.addEventListener('error', (e) => {
+        console.error('Audio error:', e);
+        cleanupAudio();
+      });
+
+      // Load the audio
+      audio.load();
+
+    } catch (error) {
+      console.error('Error setting up audio:', error);
+      cleanupAudio();
     }
   };
 

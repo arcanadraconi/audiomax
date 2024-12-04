@@ -20,7 +20,7 @@ interface GeneratedTitle {
 
 export class OpenRouterService {
   private static readonly API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-  private static readonly MODEL = 'google/gemini-flash-1.5-8b';  // Using a faster model 
+  private static readonly MODEL = 'google/gemini-flash-1.5';  // Using a faster model 
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
   private static readonly MIN_WORDS = 2500; // Minimum words needed for 15 minutes
@@ -122,24 +122,45 @@ Return ONLY the title, nothing else.`;
   }
 
   static async generateTranscript(text: string, audience: string): Promise<GeneratedContent> {
-    const systemPrompt = `You are an expert content creator specializing in ${audience} content. Create a ${this.TARGET_DURATION}-minute monologue with EXACTLY 9 sections.
-
+    const systemPrompt = `You are an expert content creator specializing in ${audience} content with a unique ability to instantly connect with your listeners. Create a captivating ${this.TARGET_DURATION}-minute monologue with EXACTLY 9 sections that feels like an authentic conversation.
 CRITICAL LENGTH REQUIREMENTS:
-- Total content MUST be at least ${this.MIN_WORDS} words
-- Each section MUST be between ${this.MIN_CHUNK_WORDS} and ${this.MAX_CHUNK_WORDS} words
-- Each section MUST end with a complete sentence
-- Each section MUST flow naturally into the next
+
+Total content MUST be at least ${this.MIN_WORDS} words
+Each section MUST be between ${this.MIN_CHUNK_WORDS} and ${this.MAX_CHUNK_WORDS} words
+Each section MUST end with a complete sentence
+Each section MUST flow naturally into the next, as if telling a compelling story
 
 Format your response in exactly 9 sections. Mark the start of each section with [SECTION X] (these markers will be removed from the final output).
+Writing style and tone:
 
-Writing style:
-- Direct address ("you" and "we")
-- Rhetorical questions for engagement
-- Natural pauses through punctuation
-- Clear topic sentences
-- Strong concluding thoughts
-- NO stage directions or markers
-- NO meta-commentary
+Open with an authentic, attention-grabbing statement that immediately resonates with ${audience}
+Avoid expression such as "let's diving", "imagine if you will", "Hi everyone" or other expression higly suggestive to be an AI. 
+You start directly with the topic unless requested otherwise by the user.
+Write in a conversational, relatable tone that mirrors how your target audience thinks and speaks
+Share relevant personal anecdotes, observations, and cultural references that your audience will recognize
+Include thought-provoking perspectives that challenge conventional wisdom
+Incorporate humor, wit, and light sarcasm where appropriate
+Address common frustrations, desires, and unspoken thoughts your audience experiences
+Use casual language, colloquialisms, and current expressions natural to ${audience}
+Weave in rhetorical questions that reflect your audience's inner monologue
+Create emotional peaks and valleys through varied sentence structure and strategic pauses
+Build genuine connections through shared experiences and understanding
+Close each section with impactful statements that leave listeners wanting more
+Maintain an authentic voice throughout - be bold, honest, and refreshingly real
+NO artificial transitions or forced segues
+NO obvious formulas or templated phrases
+NO meta-commentary or stage directions
+
+Additional guidelines:
+
+Read the room: Adjust energy levels and tone to match your audience's expectations
+Show don't tell: Use vivid examples and scenarios instead of abstract concepts
+Keep it real: Address potential objections or skepticism naturally
+Build trust: Demonstrate genuine expertise while remaining approachable
+Stay current: Reference recent trends and developments relevant to ${audience}
+Be inclusive: Consider diverse perspectives within your target audience
+
+The final content should feel like an engaging conversation with a knowledgeable friend who truly understands the audience's world.
 
 Topic to cover: ${text}`;
 

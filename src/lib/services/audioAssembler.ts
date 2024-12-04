@@ -8,11 +8,12 @@ interface AudioChunk {
 
 export class AudioAssembler {
   private onProgress: (progress: AssemblyProgress) => void;
-  private chunkSize = 1024 * 1024; // 1MB chunk size for efficient memory usage
-  private maxRetries = 3;
-  private retryDelay = 2000; // 2 seconds
-  private downloadTimeout = 30000; // 30 seconds
-  private minValidDuration = 0.1; // 100ms minimum valid duration
+  private chunkSize = 5 * 1024 * 1024; // 5MB chunk size for better handling of long audio
+  private maxRetries = 5; // Increased retries
+  private retryDelay = 3000; // 3 seconds
+  private downloadTimeout = 60000; // 60 seconds timeout for larger chunks
+  private minValidDuration = 1.0; // 1 second minimum valid duration
+  private maxConcurrentDownloads = 3; // Limit concurrent downloads
 
   constructor(onProgress: (progress: AssemblyProgress) => void) {
     this.onProgress = onProgress;
@@ -22,8 +23,8 @@ export class AudioAssembler {
     try {
       this.onProgress({ phase: 'downloading', progress: 0 });
 
-      // Step 1: Download all audio chunks with retry logic
-      const chunks: AudioChunk[] = await this.downloadChunks(urls);
+      // Step 1: Download all audio chunks with controlled concurrency
+      const chunks: AudioChunk[] = await this.downloadChunksWithConcurrency(urls);
       
       // Step 2: Verify chunk order and completeness
       this.verifyChunks(chunks);
@@ -46,34 +47,46 @@ export class AudioAssembler {
     }
   }
 
-  private async downloadChunks(urls: string[]): Promise<AudioChunk[]> {
-    const chunks: AudioChunk[] = [];
+  private async downloadChunksWithConcurrency(urls: string[]): Promise<AudioChunk[]> {
+    const chunks: AudioChunk[] = new Array(urls.length);
+    let completedChunks = 0;
     
-    // Download chunks with progress tracking
-    await Promise.all(
-      urls.map(async (url, index) => {
+    // Process URLs in batches to control concurrency
+    for (let i = 0; i < urls.length; i += this.maxConcurrentDownloads) {
+      const batch = urls.slice(i, i + this.maxConcurrentDownloads);
+      const batchPromises = batch.map(async (url, batchIndex) => {
+        const index = i + batchIndex;
         const chunk = await this.downloadChunkWithRetry(url, index);
-        chunks.push(chunk);
+        chunks[index] = chunk;
+        completedChunks++;
         
         this.onProgress({ 
           phase: 'downloading', 
-          progress: ((chunks.length) / urls.length) * 100 
+          progress: (completedChunks / urls.length) * 100 
         });
-      })
-    );
+      });
 
-    return chunks;
+      await Promise.all(batchPromises);
+    }
+
+    return chunks.filter(Boolean); // Remove any undefined entries
   }
 
   private async downloadChunkWithRetry(url: string, index: number): Promise<AudioChunk> {
     let lastError: Error | null = null;
+    let delay = this.retryDelay;
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.downloadTimeout);
 
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await fetch(url, { 
+          signal: controller.signal,
+          headers: {
+            'Range': 'bytes=0-' // Request full content
+          }
+        });
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -82,6 +95,10 @@ export class AudioAssembler {
 
         const buffer = await response.arrayBuffer();
         console.log(`Downloaded chunk ${index}, size: ${buffer.byteLength} bytes`);
+
+        if (buffer.byteLength === 0) {
+          throw new Error(`Empty chunk received for index ${index}`);
+        }
 
         return {
           index,
@@ -93,8 +110,9 @@ export class AudioAssembler {
         console.error(`Attempt ${attempt + 1} failed for chunk ${index}:`, error);
         
         if (attempt < this.maxRetries - 1) {
-          console.log(`Retrying chunk ${index} in ${this.retryDelay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+          console.log(`Retrying chunk ${index} in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
         }
       }
     }
@@ -117,10 +135,18 @@ export class AudioAssembler {
       throw new Error(`Found ${invalidChunks.length} empty chunks`);
     }
 
+    // Verify total size is reasonable for expected duration
+    const totalSize = chunks.reduce((acc, chunk) => acc + chunk.size, 0);
+    const estimatedMinutes = totalSize / (192000 * 60); // Rough estimate based on MP3 bitrate
     console.log('Chunk verification passed:', {
       totalChunks: chunks.length,
-      totalSize: chunks.reduce((acc, chunk) => acc + chunk.size, 0)
+      totalSize,
+      estimatedDuration: `${Math.round(estimatedMinutes * 10) / 10} minutes`
     });
+
+    if (estimatedMinutes < 1) {
+      console.warn('Warning: Audio content may be shorter than expected');
+    }
   }
 
   private async combineChunks(chunks: AudioChunk[]): Promise<Blob> {
@@ -152,6 +178,9 @@ export class AudioAssembler {
           phase: 'combining', 
           progress 
         });
+
+        // Allow other operations to process
+        await new Promise(resolve => setTimeout(resolve, 0));
       }
     }
 
@@ -168,7 +197,14 @@ export class AudioAssembler {
       const audio = new Audio();
       const url = URL.createObjectURL(blob);
       
+      const loadTimeout = setTimeout(() => {
+        console.error('Audio load timeout');
+        URL.revokeObjectURL(url);
+        resolve(false);
+      }, 10000); // 10 second timeout for loading
+
       audio.onloadedmetadata = () => {
+        clearTimeout(loadTimeout);
         const isValid = audio.duration > this.minValidDuration;
         console.log('Audio verification:', {
           duration: audio.duration,
@@ -179,8 +215,9 @@ export class AudioAssembler {
         resolve(isValid);
       };
       
-      audio.onerror = () => {
-        console.error('Audio verification failed');
+      audio.onerror = (e) => {
+        clearTimeout(loadTimeout);
+        console.error('Audio verification failed:', e);
         URL.revokeObjectURL(url);
         resolve(false);
       };

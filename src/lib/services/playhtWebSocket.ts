@@ -19,6 +19,8 @@ export class PlayHTWebSocket {
   private currentVoiceId: string | null = null;
   private audioTimeout: NodeJS.Timeout | null = null;
   private readonly AUDIO_TIMEOUT = 30000; // 30 seconds timeout
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds
 
   private constructor(
     private readonly apiKey: string,
@@ -80,6 +82,25 @@ export class PlayHTWebSocket {
     }
   }
 
+  private startHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    this.heartbeatInterval = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, this.HEARTBEAT_INTERVAL);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
   private async connect(): Promise<void> {
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
@@ -119,6 +140,9 @@ export class PlayHTWebSocket {
           this.reconnectAttempts = 0;
           this.connectionPromise = null;
 
+          // Start heartbeat
+          this.startHeartbeat();
+
           // Send any queued messages
           while (this.messageQueue.length > 0) {
             const message = this.messageQueue.shift();
@@ -157,6 +181,11 @@ export class PlayHTWebSocket {
               const message = JSON.parse(event.data);
               console.log('WebSocket response:', message);
 
+              if (message.type === 'pong') {
+                console.log('Received heartbeat pong');
+                return;
+              }
+
               if ('request_id' in message) {
                 console.log('Audio generation completed with voice:', this.currentVoiceId);
                 // Set a timeout to ensure we receive all audio chunks
@@ -178,11 +207,21 @@ export class PlayHTWebSocket {
           console.log('WebSocket closed:', event.code, event.reason);
           this.isConnecting = false;
           this.connectionPromise = null;
+          this.stopHeartbeat();
           
           if (this.chunks.length > 0) {
             this.finalizeAudio();
           } else {
-            this.onError('WebSocket closed before receiving any audio data');
+            // Only attempt reconnect if not a normal closure
+            if (event.code !== 1000) {
+              if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                this.reconnectAttempts++;
+                console.log(`Reconnecting attempt ${this.reconnectAttempts}...`);
+                setTimeout(() => this.connect(), this.reconnectDelay);
+              } else {
+                this.onError('WebSocket closed before receiving any audio data');
+              }
+            }
           }
         };
 
@@ -190,6 +229,7 @@ export class PlayHTWebSocket {
           console.error('WebSocket error:', event);
           this.isConnecting = false;
           this.connectionPromise = null;
+          this.stopHeartbeat();
 
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
@@ -310,13 +350,15 @@ export class PlayHTWebSocket {
   }
 
   disconnect() {
+    this.stopHeartbeat();
+    
     if (this.audioTimeout) {
       clearTimeout(this.audioTimeout);
       this.audioTimeout = null;
     }
     
     if (this.ws) {
-      this.ws.close();
+      this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
     this.messageQueue = [];

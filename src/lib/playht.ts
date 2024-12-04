@@ -2,7 +2,27 @@ import { TranscriptProcessor } from './services/transcriptProcessor';
 import { ParallelAudioGenerator } from './services/parallelAudioGenerator';
 import { AudioAssembler } from './services/audioAssembler';
 
-type VoiceEngine = 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'PlayHT1.0' | 'Standard' | 'Play3.0-mini';
+// Update voice engine types to match PlayHT's latest offerings
+type VoiceEngine = 'PlayHT2.0' | 'PlayHT2.0-turbo' | 'Play3.0-mini' | 'Standard';
+
+interface RawVoice {
+  id: string;
+  name: string;
+  preview_url?: string;
+  sample_url?: string;
+  accent?: string;
+  age?: string;
+  gender?: string;
+  language?: string;
+  language_code?: string;
+  loudness?: string;
+  style?: string;
+  tempo?: string;
+  texture?: string;
+  is_cloned?: boolean;
+  voice_engine?: VoiceEngine;
+  user_id?: string;
+}
 
 interface Voice {
   id: string;
@@ -19,6 +39,7 @@ interface Voice {
   texture: string;
   is_cloned: boolean;
   voiceEngine: VoiceEngine;
+  user_id?: string; // Optional field for cloned voices
 }
 
 interface SpeechGenerationOptions {
@@ -65,6 +86,26 @@ class PlayHTClient {
     };
   }
 
+  private mapVoice(voice: RawVoice): Voice {
+    return {
+      id: voice.id,
+      name: voice.name,
+      sample: voice.preview_url || voice.sample_url || '',
+      accent: voice.accent || '',
+      age: voice.age || '',
+      gender: voice.gender || '',
+      language: voice.language || '',
+      language_code: voice.language_code || '',
+      loudness: voice.loudness || '',
+      style: voice.style || '',
+      tempo: voice.tempo || '',
+      texture: voice.texture || '',
+      is_cloned: voice.is_cloned || false,
+      voiceEngine: voice.voice_engine || (voice.is_cloned ? 'PlayHT2.0' : 'Play3.0-mini'),
+      user_id: voice.user_id
+    };
+  }
+
   async getVoices(): Promise<Voice[]> {
     try {
       // Check cache first
@@ -92,11 +133,23 @@ class PlayHTClient {
 
       const data = await response.json();
       console.log('Raw voices response:', data);
-      const voices = data?.voices || [];
+      const voiceArray: RawVoice[] = data?.voices || [];
       
-      // Cache the voices
+      // Map voices and ensure proper engine assignment
+      const voices = voiceArray.map(voice => this.mapVoice(voice));
+      
+      // Sort voices by language and name
+      const sortedVoices = voices.sort((a: Voice, b: Voice) => {
+        // First sort by language
+        const langCompare = a.language.localeCompare(b.language);
+        if (langCompare !== 0) return langCompare;
+        // Then by name within each language
+        return a.name.localeCompare(b.name);
+      });
+
+      // Cache the sorted voices
       this.voiceCache = {
-        voices: voices.sort((a: Voice, b: Voice) => a.name.localeCompare(b.name)),
+        voices: sortedVoices,
         timestamp: now
       };
       
@@ -229,7 +282,8 @@ class PlayHTClient {
       }
 
       const data = await response.json();
-      const voices = data?.voices || [];
+      const voiceArray: RawVoice[] = data?.voices || [];
+      const voices = voiceArray.map(voice => this.mapVoice(voice));
       console.log(`Fetched ${voices.length} cloned voices`);
       return voices;
     } catch (error) {

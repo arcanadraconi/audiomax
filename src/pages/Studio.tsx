@@ -6,23 +6,10 @@ import { AudioPlayer } from '../components/studio/AudioPlayer';
 import { VoiceCloning } from '../components/studio/VoiceCloning';
 import { VoiceLibrary } from '../components/studio/favorites';
 import { Navbar } from '../components/layout/Navbar';
+import { Voice as PlayHTVoice } from '../lib/playht';
+import { playhtClient } from '../lib/playht';
 
-interface Voice {
-  id: string;
-  name: string;
-  sample: string;
-  accent: string;
-  age: string;
-  gender: string;
-  language: string;
-  language_code: string;
-  loudness: string;
-  style: string;
-  tempo: string;
-  texture: string;
-  is_cloned: boolean;
-  voice_engine: string;
-}
+const FAVORITE_VOICES_KEY = 'audiomax_favorite_voices';
 
 interface AudioGenerationEvent {
   url: string;
@@ -40,6 +27,12 @@ export default function Studio() {
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
   const [transcript, setTranscript] = useState<string>('');
+  const [voices, setVoices] = useState<PlayHTVoice[]>([]);
+  const [favoriteVoices, setFavoriteVoices] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem(FAVORITE_VOICES_KEY);
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  });
+  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     const checkMobile = () => {
@@ -85,6 +78,17 @@ export default function Studio() {
       setGenerationProgress(event.detail.progress);
     };
 
+    // Fetch voices
+    const fetchVoices = async () => {
+      try {
+        const voiceList = await playhtClient.getVoices();
+        setVoices(voiceList);
+      } catch (err) {
+        console.error('Failed to fetch voices:', err);
+      }
+    };
+    fetchVoices();
+
     window.addEventListener('audioGenerationStart', handleAudioGenerationStart);
     window.addEventListener('audioGenerated', handleAudioGenerated as EventListener);
     window.addEventListener('audioGenerationProgress', handleAudioGenerationProgress as EventListener);
@@ -95,16 +99,53 @@ export default function Studio() {
       window.removeEventListener('audioGenerationStart', handleAudioGenerationStart);
       window.removeEventListener('audioGenerated', handleAudioGenerated as EventListener);
       window.removeEventListener('audioGenerationProgress', handleAudioGenerationProgress as EventListener);
-      // Clean up audio URL
+      // Clean up audio URL and player
       if (generatedAudioUrl) {
         URL.revokeObjectURL(generatedAudioUrl);
+      }
+      if (currentAudio) {
+        currentAudio.pause();
       }
     };
   }, [generatedAudioUrl]);
 
-  const handleVoiceSelect = (voice: Voice) => {
-    // Handle voice selection logic here
+  // Save favorites to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem(FAVORITE_VOICES_KEY, JSON.stringify(Array.from(favoriteVoices)));
+  }, [favoriteVoices]);
+
+  const handleVoiceSelect = (voice: PlayHTVoice) => {
     console.log('Selected voice:', voice);
+  };
+
+  const handleFavoriteToggle = (voice: PlayHTVoice) => {
+    setFavoriteVoices(prev => {
+      const newFavorites = new Set(prev);
+      if (newFavorites.has(voice.id)) {
+        newFavorites.delete(voice.id);
+      } else {
+        newFavorites.add(voice.id);
+      }
+      return newFavorites;
+    });
+  };
+
+  const handlePlaySample = (voice: PlayHTVoice) => {
+    if (currentAudio) {
+      currentAudio.pause();
+      setCurrentAudio(null);
+    }
+
+    if (voice.sample) {
+      const audio = new Audio(voice.sample);
+      audio.play();
+      setCurrentAudio(audio);
+      
+      // Cleanup after playback ends
+      audio.addEventListener('ended', () => {
+        setCurrentAudio(null);
+      });
+    }
   };
 
   return (
@@ -182,7 +223,13 @@ export default function Studio() {
             />
 
             <VoiceCloning />
-            <VoiceLibrary onVoiceSelect={handleVoiceSelect} />
+            <VoiceLibrary 
+              onVoiceSelect={handleVoiceSelect}
+              onFavoriteToggle={handleFavoriteToggle}
+              onPlaySample={handlePlaySample}
+              voices={voices}
+              favoriteVoices={favoriteVoices}
+            />
           </div>
         </div>
       </div>

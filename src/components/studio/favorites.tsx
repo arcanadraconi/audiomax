@@ -1,20 +1,21 @@
-import { Volume2, Star } from 'lucide-react';
-import type { Voice } from '../../lib/playht';
+import { useState } from 'react';
+import { Voice as PlayHTVoice } from '../../lib/playht';
+import { Star, Volume2 } from 'lucide-react';
 
-interface VoiceLibraryProps {
-  onVoiceSelect: (voice: Voice) => void;
-  onFavoriteToggle: (voice: Voice) => void;
-  onPlaySample?: (voice: Voice) => void;
-  voices: Voice[];
-  favoriteVoices: Set<string>;
+export interface VoiceLibraryProps {
+  onVoiceSelect: (voice: PlayHTVoice) => void;
+  onFavoriteToggle?: (voice: PlayHTVoice) => void;
+  onPlaySample?: (voice: PlayHTVoice) => void;
+  voices?: PlayHTVoice[];
+  favoriteVoices?: Set<string>;
 }
 
 export function VoiceLibrary({ 
   onVoiceSelect,
   onFavoriteToggle,
   onPlaySample,
-  voices,
-  favoriteVoices
+  voices = [], // Provide empty array as default
+  favoriteVoices = new Set() // Provide empty Set as default
 }: VoiceLibraryProps) {
   const favoriteVoicesList = voices.filter(voice => favoriteVoices.has(voice.id));
 
@@ -43,17 +44,19 @@ export function VoiceLibrary({
               <div className="text-white/60">{voice.gender}</div>
               <div className="text-white/60">{voice.accent}</div>
               <div className="text-white/60">{formatLanguage(voice.language)}</div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onFavoriteToggle(voice);
-                }}
-                className="p-1 text-white/40 hover:text-white/90 transition-colors"
-                title="Remove from favorites"
-              >
-                <Star className="h-4 w-4 fill-current text-yellow-400" />
-              </button>
-              {onPlaySample && (
+              {onFavoriteToggle && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onFavoriteToggle(voice);
+                  }}
+                  className="p-1 text-white/40 hover:text-white/90 transition-colors"
+                  title="Remove from favorites"
+                >
+                  <Star className="h-4 w-4 fill-current text-yellow-400" />
+                </button>
+              )}
+              {onPlaySample && voice.sample && (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

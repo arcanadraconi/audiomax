@@ -2,12 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
 import { Paperclip, Camera, Mic, X, ChevronDown } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
-import { VoiceLibrary } from './favorites';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
 import { Voice as PlayHTVoice } from '../../lib/playht';
 import { PlayHTWebSocket } from '../../lib/services/playhtWebSocket';
+import { playhtClient } from '../../lib/playht';
 
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const ALLOWED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png', '.gif'];
@@ -75,12 +75,25 @@ export function InputStudio() {
   // Check if voice cloning is enabled from environment
   const isVoiceCloningEnabled = env.features.voiceCloning;
 
+  // Fetch voices on mount
+  useEffect(() => {
+    const fetchVoices = async () => {
+      try {
+        const voiceList = await playhtClient.getVoices();
+        setVoices(voiceList);
+      } catch (err) {
+        console.error('Failed to fetch voices:', err);
+      }
+    };
+    fetchVoices();
+  }, []);
+
   // Save favorites to localStorage when they change
   useEffect(() => {
     localStorage.setItem(FAVORITE_VOICES_KEY, JSON.stringify(Array.from(favoriteVoices)));
   }, [favoriteVoices]);
 
-  // Cleanup WebSocket on unmount
+  // Cleanup WebSocket and audio on unmount
   useEffect(() => {
     return () => {
       if (webSocketRef.current) {
@@ -472,15 +485,6 @@ export function InputStudio() {
           </div>
         )}
       </div>
-
-      {/* Favorite Voices */}
-      <VoiceLibrary
-        onVoiceSelect={handleVoiceSelect}
-        onFavoriteToggle={handleFavoriteToggle}
-        onPlaySample={handlePlaySample}
-        voices={voices}
-        favoriteVoices={favoriteVoices}
-      />
 
       {/* Generate Button */}
       <div className="relative z-0">

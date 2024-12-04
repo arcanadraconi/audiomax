@@ -105,6 +105,7 @@ export default function Studio() {
       }
       if (currentAudio) {
         currentAudio.pause();
+        setCurrentAudio(null);
       }
     };
   }, [generatedAudioUrl]);
@@ -119,6 +120,7 @@ export default function Studio() {
   };
 
   const handleFavoriteToggle = (voice: PlayHTVoice) => {
+    console.log('Toggling favorite for voice:', voice.name);
     setFavoriteVoices(prev => {
       const newFavorites = new Set(prev);
       if (newFavorites.has(voice.id)) {
@@ -131,18 +133,25 @@ export default function Studio() {
   };
 
   const handlePlaySample = (voice: PlayHTVoice) => {
+    console.log('Playing sample for voice:', voice.name, 'Sample URL:', voice.sample);
+    
+    // Stop any currently playing audio
     if (currentAudio) {
       currentAudio.pause();
       setCurrentAudio(null);
     }
 
+    // Play new sample if available
     if (voice.sample) {
       const audio = new Audio(voice.sample);
-      audio.play();
+      audio.play().catch(error => {
+        console.error('Error playing audio:', error);
+      });
       setCurrentAudio(audio);
       
       // Cleanup after playback ends
       audio.addEventListener('ended', () => {
+        console.log('Sample playback ended');
         setCurrentAudio(null);
       });
     }
@@ -210,9 +219,13 @@ export default function Studio() {
           </div>
 
           {/* Middle Column - Main Controls */}
-          <div className="space-y-6">
-            <InputStudio />
-          </div>
+          <InputStudio 
+            voices={voices}
+            favoriteVoices={favoriteVoices}
+            onVoiceSelect={handleVoiceSelect}
+            onFavoriteToggle={handleFavoriteToggle}
+            onPlaySample={handlePlaySample}
+          />
 
           {/* Right Column - Audio Controls */}
           <div className="space-y-6">

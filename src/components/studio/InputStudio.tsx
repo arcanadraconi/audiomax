@@ -2,20 +2,17 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
 import { Paperclip, Camera, Mic, X, ChevronDown, Volume2 } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
-import { VoiceLibrary } from './favorites';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
 import { env } from '../../env';
 import { Voice as PlayHTVoice } from '../../lib/playht';
 import { PlayHTWebSocket } from '../../lib/services/playhtWebSocket';
-import { playhtClient } from '../../lib/playht';
+
 
 const ALLOWED_FILE_TYPES = ['.pdf', '.txt', '.docx', '.doc', '.md'];
 const ALLOWED_IMAGE_TYPES = ['.jpg', '.jpeg', '.png', '.gif'];
 const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB in bytes
 const MAX_IMAGES = 5;
-
-const FAVORITE_VOICES_KEY = 'audiomax_favorite_voices';
 
 const audiences = [
   {
@@ -45,7 +42,21 @@ const audiences = [
   }
 ];
 
-export function InputStudio() {
+interface InputStudioProps {
+  voices: PlayHTVoice[];
+  favoriteVoices: Set<string>;
+  onVoiceSelect: (voice: PlayHTVoice) => void;
+  onFavoriteToggle: (voice: PlayHTVoice) => void;
+  onPlaySample: (voice: PlayHTVoice) => void;
+}
+
+export function InputStudio({
+  voices,
+  favoriteVoices,
+  onVoiceSelect: parentVoiceSelect,
+  onFavoriteToggle: parentFavoriteToggle,
+  onPlaySample: parentPlaySample
+}: InputStudioProps) {
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [textInput, setTextInput] = useState('');
   const [error, setError] = useState<string>('');
@@ -56,12 +67,6 @@ export function InputStudio() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
-  const [favoriteVoices, setFavoriteVoices] = useState<Set<string>>(() => {
-    const saved = localStorage.getItem(FAVORITE_VOICES_KEY);
-    return saved ? new Set(JSON.parse(saved)) : new Set();
-  });
-  const [voices, setVoices] = useState<PlayHTVoice[]>([]);
-  const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -76,34 +81,12 @@ export function InputStudio() {
   // Check if voice cloning is enabled from environment
   const isVoiceCloningEnabled = env.features.voiceCloning;
 
-  // Fetch voices on mount
-  useEffect(() => {
-    const fetchVoices = async () => {
-      try {
-        const voiceList = await playhtClient.getVoices();
-        setVoices(voiceList);
-      } catch (err) {
-        console.error('Failed to fetch voices:', err);
-      }
-    };
-    fetchVoices();
-  }, []);
-
-  // Save favorites to localStorage when they change
-  useEffect(() => {
-    localStorage.setItem(FAVORITE_VOICES_KEY, JSON.stringify(Array.from(favoriteVoices)));
-  }, [favoriteVoices]);
-
-  // Cleanup WebSocket and audio on unmount
+  // Cleanup WebSocket on unmount
   useEffect(() => {
     return () => {
       if (webSocketRef.current) {
         webSocketRef.current.disconnect();
         webSocketRef.current = null;
-      }
-      if (currentAudio) {
-        currentAudio.pause();
-        setCurrentAudio(null);
       }
     };
   }, []);
@@ -185,38 +168,20 @@ export function InputStudio() {
       name: voice.name,
       id: voice.id,
       gender: voice.gender,
-      accent: voice.accent
+      accent: voice.accent,
+      sample: voice.sample
     });
     setSelectedVoice(voice);
+    parentVoiceSelect(voice);
   };
 
   const handleFavoriteToggle = (voice: PlayHTVoice) => {
-    setFavoriteVoices(prev => {
-      const newFavorites = new Set(prev);
-      if (newFavorites.has(voice.id)) {
-        newFavorites.delete(voice.id);
-      } else {
-        newFavorites.add(voice.id);
-      }
-      return newFavorites;
-    });
+    parentFavoriteToggle(voice);
   };
 
   const handlePlaySample = (voice: PlayHTVoice) => {
-    if (currentAudio) {
-      currentAudio.pause();
-      setCurrentAudio(null);
-    }
-
     if (voice.sample) {
-      const audio = new Audio(voice.sample);
-      audio.play();
-      setCurrentAudio(audio);
-      
-      // Cleanup after playback ends
-      audio.addEventListener('ended', () => {
-        setCurrentAudio(null);
-      });
+      parentPlaySample(voice);
     }
   };
 
@@ -486,14 +451,8 @@ export function InputStudio() {
             </button>
             
             {/* Voice name */}
-            <div className="text-white/80 text-md font-normal mb-2">{selectedVoice.name}</div>
-
-            {/* Voice parameters and play sample */}
-            <div className="flex items-center gap-4 text-sm">
-              <div className="text-white/60">{selectedVoice.gender || 'unknown'}</div>
-              <div className="text-white/60">{selectedVoice.age || 'adult'}</div>
-              <div className="text-white/60">{selectedVoice.style || 'normal'}</div>
-              <div className="text-white/60">{selectedVoice.tempo || 'neutral'}</div>
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-white/80 text-md font-normal">{selectedVoice.name}</div>
               {selectedVoice.sample && (
                 <button
                   onClick={() => handlePlaySample(selectedVoice)}
@@ -503,6 +462,14 @@ export function InputStudio() {
                   <Volume2 className="h-4 w-4" />
                 </button>
               )}
+            </div>
+
+            {/* Voice parameters */}
+            <div className="flex items-center gap-4 text-sm">
+              <div className="text-white/60">{selectedVoice.gender || 'unknown'}</div>
+              <div className="text-white/60">{selectedVoice.age || 'adult'}</div>
+              <div className="text-white/60">{selectedVoice.style || 'normal'}</div>
+              <div className="text-white/60">{selectedVoice.tempo || 'neutral'}</div>
             </div>
           </div>
         )}

@@ -18,9 +18,13 @@ export class PlayHTWebSocket {
   private connectionPromise: Promise<void> | null = null;
   private currentVoiceId: string | null = null;
   private audioTimeout: NodeJS.Timeout | null = null;
-  private readonly AUDIO_TIMEOUT = 30000; // 30 seconds timeout
   private heartbeatInterval: NodeJS.Timeout | null = null;
-  private readonly HEARTBEAT_INTERVAL = 30000; // 30 seconds
+  private closeTimeout: NodeJS.Timeout | null = null;
+  private readonly AUDIO_TIMEOUT = 45000; // 45 seconds timeout
+  private readonly HEARTBEAT_INTERVAL = 15000; // 15 seconds
+  private readonly CLOSE_DELAY = 30000; // 30 seconds wait before closing
+  private isGenerating: boolean = false;
+  private lastChunkTime: number = 0;
 
   private constructor(
     private readonly apiKey: string,
@@ -89,6 +93,7 @@ export class PlayHTWebSocket {
 
     this.heartbeatInterval = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
+        console.log('Sending heartbeat ping...');
         this.ws.send(JSON.stringify({ type: 'ping' }));
       }
     }, this.HEARTBEAT_INTERVAL);
@@ -99,6 +104,16 @@ export class PlayHTWebSocket {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
+  }
+
+  private resetCloseTimeout() {
+    if (this.closeTimeout) {
+      clearTimeout(this.closeTimeout);
+    }
+    this.closeTimeout = setTimeout(() => {
+      console.log('Close timeout reached, finalizing audio...');
+      this.finalizeAudio();
+    }, this.CLOSE_DELAY);
   }
 
   private async connect(): Promise<void> {
@@ -167,6 +182,7 @@ export class PlayHTWebSocket {
                 const arrayBuffer = reader.result as ArrayBuffer;
                 const chunk = new Uint8Array(arrayBuffer);
                 this.chunks.push(chunk);
+                this.lastChunkTime = Date.now();
                 console.log('Received audio chunk for voice:', this.currentVoiceId, 'Size:', chunk.length);
                 
                 // Update progress
@@ -174,6 +190,9 @@ export class PlayHTWebSocket {
                   progress: Math.min((this.chunks.length / 100) * 100, 99),
                   status: 'receiving'
                 });
+
+                // Reset close timeout
+                this.resetCloseTimeout();
               };
               reader.readAsArrayBuffer(event.data);
             } else {
@@ -187,13 +206,15 @@ export class PlayHTWebSocket {
               }
 
               if ('request_id' in message) {
-                console.log('Audio generation completed with voice:', this.currentVoiceId);
-                // Set a timeout to ensure we receive all audio chunks
-                this.audioTimeout = setTimeout(() => this.finalizeAudio(), 2000);
+                console.log('Audio generation started for voice:', this.currentVoiceId);
+                this.isGenerating = true;
+                this.lastChunkTime = Date.now();
+                this.resetCloseTimeout();
               }
 
               if ('error' in message) {
                 this.onError(`PlayHT Error: ${message.error}`);
+                this.isGenerating = false;
               }
             }
           } catch (error) {
@@ -209,20 +230,24 @@ export class PlayHTWebSocket {
           this.connectionPromise = null;
           this.stopHeartbeat();
           
-          if (this.chunks.length > 0) {
+          // Check if we've received any chunks recently
+          const timeSinceLastChunk = Date.now() - this.lastChunkTime;
+          if (this.chunks.length > 0 && timeSinceLastChunk > 30000) {
+            console.log('No new chunks received for 30 seconds, finalizing audio...');
             this.finalizeAudio();
-          } else {
-            // Only attempt reconnect if not a normal closure
+          } else if (this.isGenerating) {
+            // Only attempt reconnect if we were in the middle of generation
             if (event.code !== 1000) {
               if (this.reconnectAttempts < this.maxReconnectAttempts) {
                 this.reconnectAttempts++;
                 console.log(`Reconnecting attempt ${this.reconnectAttempts}...`);
                 setTimeout(() => this.connect(), this.reconnectDelay);
               } else {
-                this.onError('WebSocket closed before receiving any audio data');
+                this.onError('WebSocket closed before receiving all audio data');
               }
             }
           }
+          this.isGenerating = false;
         };
 
         this.ws.onerror = (event) => {
@@ -230,6 +255,7 @@ export class PlayHTWebSocket {
           this.isConnecting = false;
           this.connectionPromise = null;
           this.stopHeartbeat();
+          this.isGenerating = false;
 
           if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
@@ -246,6 +272,7 @@ export class PlayHTWebSocket {
         console.error('Error connecting to WebSocket:', errorMessage);
         this.isConnecting = false;
         this.connectionPromise = null;
+        this.isGenerating = false;
         reject(new Error(errorMessage));
       }
     });
@@ -257,6 +284,11 @@ export class PlayHTWebSocket {
     if (this.audioTimeout) {
       clearTimeout(this.audioTimeout);
       this.audioTimeout = null;
+    }
+
+    if (this.closeTimeout) {
+      clearTimeout(this.closeTimeout);
+      this.closeTimeout = null;
     }
 
     if (this.chunks.length === 0) {
@@ -292,6 +324,7 @@ export class PlayHTWebSocket {
 
       this.onProgress({ progress: 100, status: 'complete' });
       this.onComplete(url);
+      this.isGenerating = false;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error finalizing audio';
       console.error('Error finalizing audio:', errorMessage);
@@ -299,6 +332,7 @@ export class PlayHTWebSocket {
     } finally {
       // Reset state
       this.chunks = [];
+      this.lastChunkTime = 0;
     }
   }
 
@@ -356,8 +390,13 @@ export class PlayHTWebSocket {
       clearTimeout(this.audioTimeout);
       this.audioTimeout = null;
     }
+
+    if (this.closeTimeout) {
+      clearTimeout(this.closeTimeout);
+      this.closeTimeout = null;
+    }
     
-    if (this.ws) {
+    if (this.ws && !this.isGenerating) {
       this.ws.close(1000, 'Client disconnecting');
       this.ws = null;
     }
@@ -367,6 +406,7 @@ export class PlayHTWebSocket {
     this.reconnectAttempts = 0;
     this.connectionPromise = null;
     this.currentVoiceId = null;
+    this.lastChunkTime = 0;
     PlayHTWebSocket.instance = null;
   }
 }

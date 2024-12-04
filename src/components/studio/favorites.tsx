@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Voice as PlayHTVoice } from '../../lib/playht';
 import { Star, Volume2 } from 'lucide-react';
 

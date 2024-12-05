@@ -21,7 +21,7 @@ interface TfIdfItem {
 export class TranscriptProcessor {
   private static readonly WORDS_PER_MINUTE = 150;
   private static readonly CHUNK_SIZE = 1800; // characters
-  private static readonly MIN_CHUNK_SIZE = 500; // characters
+  private static readonly MIN_CHUNK_SIZE = 700; // characters
   private static readonly sentenceTokenizer = new natural.SentenceTokenizer();
 
   static async process(text: string): Promise<ProcessedTranscript> {

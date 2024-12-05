@@ -68,6 +68,7 @@ export function InputStudio({
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [currentPlayingVoiceId, setCurrentPlayingVoiceId] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -92,10 +93,19 @@ export function InputStudio({
       }
       if (audioRef.current) {
         audioRef.current.pause();
+        audioRef.current.src = '';
         audioRef.current = null;
       }
     };
   }, []);
+
+  // Handle voice changes
+  useEffect(() => {
+    if (selectedVoice?.id !== currentPlayingVoiceId && audioRef.current && isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [selectedVoice]);
 
   const validateFile = (file: File): string | null => {
     if (file.size > MAX_FILE_SIZE) {
@@ -185,38 +195,66 @@ export function InputStudio({
     parentFavoriteToggle(voice);
   };
 
-  const handlePlaySample = (voice: PlayHTVoice) => {
+  const handlePlaySample = async (voice: PlayHTVoice) => {
     if (!voice.sample) return;
 
-    if (!audioRef.current) {
-      audioRef.current = new Audio(voice.sample);
-      audioRef.current.addEventListener('ended', () => {
-        setIsPlaying(false);
-      });
-    }
-
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      // If the voice sample URL has changed, update it
-      if (audioRef.current.src !== voice.sample) {
-        audioRef.current.src = voice.sample;
+    try {
+      if (!audioRef.current) {
+        audioRef.current = new Audio();
+        audioRef.current.addEventListener('ended', () => {
+          setIsPlaying(false);
+          setCurrentPlayingVoiceId(null);
+        });
+        audioRef.current.addEventListener('error', (e) => {
+          console.error('Audio playback error:', e);
+          setError('Failed to play voice sample');
+          setIsPlaying(false);
+          setCurrentPlayingVoiceId(null);
+        });
       }
-      audioRef.current.play().catch(error => {
-        console.error('Error playing audio:', error);
-        setError('Failed to play voice sample');
-      });
-      setIsPlaying(true);
-    }
 
-    parentPlaySample(voice);
+      if (isPlaying && currentPlayingVoiceId === voice.id) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+        setCurrentPlayingVoiceId(null);
+      } else {
+        // Stop current audio if different voice
+        if (isPlaying) {
+          audioRef.current.pause();
+        }
+
+        // Update audio source if needed
+        if (audioRef.current.src !== voice.sample) {
+          audioRef.current.src = voice.sample;
+        }
+
+        try {
+          await audioRef.current.play();
+          setIsPlaying(true);
+          setCurrentPlayingVoiceId(voice.id);
+          setError(''); // Clear any previous errors
+        } catch (error) {
+          console.error('Error playing audio:', error);
+          setError('Failed to play voice sample');
+          setIsPlaying(false);
+          setCurrentPlayingVoiceId(null);
+        }
+      }
+
+      parentPlaySample(voice);
+    } catch (error) {
+      console.error('Error handling audio:', error);
+      setError('Failed to initialize audio playback');
+      setIsPlaying(false);
+      setCurrentPlayingVoiceId(null);
+    }
   };
 
   const clearSelectedVoice = () => {
-    if (audioRef.current) {
+    if (audioRef.current && isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
+      setCurrentPlayingVoiceId(null);
     }
     setSelectedVoice(null);
     // Show voice search dropdown when clearing selection
@@ -489,9 +527,9 @@ export function InputStudio({
                 <button
                   onClick={() => handlePlaySample(selectedVoice)}
                   className="p-1 text-white/40 hover:text-white/90 transition-colors"
-                  title={isPlaying ? "Stop sample" : "Play sample"}
+                  title={isPlaying && currentPlayingVoiceId === selectedVoice.id ? "Stop sample" : "Play sample"}
                 >
-                  {isPlaying ? (
+                  {isPlaying && currentPlayingVoiceId === selectedVoice.id ? (
                     <Pause className="h-4 w-4" />
                   ) : (
                     <Volume2 className="h-4 w-4" />

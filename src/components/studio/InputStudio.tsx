@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from "../ui/button";
-import { Paperclip, Camera, Mic, X, ChevronDown, Volume2 } from 'lucide-react';
+import { Paperclip, Camera, Mic, X, ChevronDown, Volume2, Pause } from 'lucide-react';
 import { VoiceSearch } from './VoiceSearch';
 import { OpenRouterService } from '../../lib/openRouterService';
 import { useAudioProcessing } from '../../hooks/useAudioProcessing';
@@ -67,10 +67,12 @@ export function InputStudio({
   const [isGenerating, setIsGenerating] = useState(false);
   const [estimatedDuration, setEstimatedDuration] = useState<number>(0);
   const [totalWordCount, setTotalWordCount] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const webSocketRef = useRef<PlayHTWebSocket | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Use the audio processing hook
   const {
@@ -81,12 +83,16 @@ export function InputStudio({
   // Check if voice cloning is enabled from environment
   const isVoiceCloningEnabled = env.features.voiceCloning;
 
-  // Cleanup WebSocket on unmount
+  // Cleanup WebSocket and audio on unmount
   useEffect(() => {
     return () => {
       if (webSocketRef.current) {
         webSocketRef.current.disconnect();
         webSocketRef.current = null;
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
       }
     };
   }, []);
@@ -180,12 +186,38 @@ export function InputStudio({
   };
 
   const handlePlaySample = (voice: PlayHTVoice) => {
-    if (voice.sample) {
-      parentPlaySample(voice);
+    if (!voice.sample) return;
+
+    if (!audioRef.current) {
+      audioRef.current = new Audio(voice.sample);
+      audioRef.current.addEventListener('ended', () => {
+        setIsPlaying(false);
+      });
     }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      // If the voice sample URL has changed, update it
+      if (audioRef.current.src !== voice.sample) {
+        audioRef.current.src = voice.sample;
+      }
+      audioRef.current.play().catch(error => {
+        console.error('Error playing audio:', error);
+        setError('Failed to play voice sample');
+      });
+      setIsPlaying(true);
+    }
+
+    parentPlaySample(voice);
   };
 
   const clearSelectedVoice = () => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    }
     setSelectedVoice(null);
     // Show voice search dropdown when clearing selection
     const searchInput = document.querySelector('input[placeholder*="Search voice"]') as HTMLInputElement;
@@ -457,9 +489,13 @@ export function InputStudio({
                 <button
                   onClick={() => handlePlaySample(selectedVoice)}
                   className="p-1 text-white/40 hover:text-white/90 transition-colors"
-                  title="Play sample"
+                  title={isPlaying ? "Stop sample" : "Play sample"}
                 >
-                  <Volume2 className="h-4 w-4" />
+                  {isPlaying ? (
+                    <Pause className="h-4 w-4" />
+                  ) : (
+                    <Volume2 className="h-4 w-4" />
+                  )}
                 </button>
               )}
             </div>

@@ -176,28 +176,49 @@ app.get('/api/voices', async (req, res) => {
     
     // Handle both array and object response formats
     const voiceArray = Array.isArray(data) ? data : (data.voices || []);
+
+    // Log first voice for debugging
+    if (voiceArray.length > 0) {
+      console.log('Example raw voice:', JSON.stringify(voiceArray[0], null, 2));
+    }
     
     // Map the voices to match our client's expected format
-    const voices = voiceArray.map(voice => ({
-      id: voice.id,
-      name: voice.name,
-      sample: voice.preview_url || voice.sample_url,
-      accent: voice.accent || '',
-      age: voice.age || '',
-      gender: voice.gender || '',
-      language: voice.language || '',
-      language_code: voice.language_code || '',
-      loudness: voice.loudness || '',
-      style: voice.style || '',
-      tempo: voice.tempo || '',
-      texture: voice.texture || '',
-      is_cloned: voice.is_cloned || false,
-      voiceEngine: voice.is_cloned ? 'PlayHT2.0' : 'Play3.0-mini'
-    }));
+    const voices = voiceArray.map(voice => {
+      // Get sample URL, ensuring it's a valid URL
+      let sampleUrl = voice.preview_url || voice.sample_url || '';
+      if (sampleUrl && !sampleUrl.startsWith('http')) {
+        sampleUrl = `https://play.ht${sampleUrl.startsWith('/') ? '' : '/'}${sampleUrl}`;
+      }
+
+      // Log sample URL for debugging
+      console.log(`Voice ${voice.name} sample URL:`, sampleUrl);
+
+      return {
+        id: voice.id,
+        name: voice.name,
+        sample: sampleUrl,
+        accent: voice.accent || '',
+        age: voice.age || '',
+        gender: voice.gender || '',
+        language: voice.language || '',
+        language_code: voice.language_code || '',
+        loudness: voice.loudness || '',
+        style: voice.style || '',
+        tempo: voice.tempo || '',
+        texture: voice.texture || '',
+        is_cloned: voice.is_cloned || false,
+        voiceEngine: voice.is_cloned ? 'PlayHT2.0' : 'Play3.0-mini'
+      };
+    });
 
     // Log voice languages for debugging
     const languages = [...new Set(voices.map(v => v.language))].sort();
     console.log('Available languages:', languages);
+
+    // Log first processed voice for debugging
+    if (voices.length > 0) {
+      console.log('Example processed voice:', JSON.stringify(voices[0], null, 2));
+    }
 
     console.log(`Processed ${voices.length} voices`);
     res.json({ voices });
@@ -241,26 +262,47 @@ app.get('/api/cloned-voices', async (req, res) => {
     
     // Handle both array and object response formats
     const voiceArray = Array.isArray(data) ? data : (data.voices || []);
+
+    // Log first voice for debugging
+    if (voiceArray.length > 0) {
+      console.log('Example raw cloned voice:', JSON.stringify(voiceArray[0], null, 2));
+    }
     
     // Map the voices to match our client's expected format
     // Include user_id from the API response
-    const voices = voiceArray.map(voice => ({
-      id: voice.id,
-      name: voice.name,
-      sample: voice.preview_url || voice.sample_url,
-      accent: voice.accent || '',
-      age: voice.age || '',
-      gender: voice.gender || '',
-      language: voice.language || '',
-      language_code: voice.language_code || '',
-      loudness: voice.loudness || '',
-      style: voice.style || '',
-      tempo: voice.tempo || '',
-      texture: voice.texture || '',
-      is_cloned: true,
-      voiceEngine: 'PlayHT2.0',
-      user_id: voice.user_id || voice.userId || userId // Include user_id from response or fallback to current user
-    }));
+    const voices = voiceArray.map(voice => {
+      // Get sample URL, ensuring it's a valid URL
+      let sampleUrl = voice.preview_url || voice.sample_url || '';
+      if (sampleUrl && !sampleUrl.startsWith('http')) {
+        sampleUrl = `https://play.ht${sampleUrl.startsWith('/') ? '' : '/'}${sampleUrl}`;
+      }
+
+      // Log sample URL for debugging
+      console.log(`Cloned voice ${voice.name} sample URL:`, sampleUrl);
+
+      return {
+        id: voice.id,
+        name: voice.name,
+        sample: sampleUrl,
+        accent: voice.accent || '',
+        age: voice.age || '',
+        gender: voice.gender || '',
+        language: voice.language || '',
+        language_code: voice.language_code || '',
+        loudness: voice.loudness || '',
+        style: voice.style || '',
+        tempo: voice.tempo || '',
+        texture: voice.texture || '',
+        is_cloned: true,
+        voiceEngine: 'PlayHT2.0',
+        user_id: voice.user_id || voice.userId || userId // Include user_id from response or fallback to current user
+      };
+    });
+
+    // Log first processed voice for debugging
+    if (voices.length > 0) {
+      console.log('Example processed cloned voice:', JSON.stringify(voices[0], null, 2));
+    }
 
     console.log(`Processed ${voices.length} cloned voices`);
     res.json({ voices });

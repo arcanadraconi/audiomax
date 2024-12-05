@@ -160,7 +160,6 @@ export class TranscriptProcessor {
   private static expandContent(text: string, additionalWordsNeeded: number): string {
     const doc = nlp(text);
     const topics = doc.topics().json() as Topic[];
-    const sentences = doc.sentences().json().map((s: Sentence) => s.text);
     
     let expandedText = text;
     const expansionTemplates = [

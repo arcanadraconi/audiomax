@@ -24,7 +24,6 @@ export class PlayHTWebSocket {
   private readonly HEARTBEAT_INTERVAL = 15000; // 15 seconds
   private readonly CLOSE_DELAY = 180000; // 3 minutes wait before closing for longer content
   private isGenerating: boolean = false;
-  private lastChunkTime: number = 0;
   private minExpectedChunks: number = 3;
 
   private constructor(
@@ -187,7 +186,6 @@ export class PlayHTWebSocket {
                 const arrayBuffer = reader.result as ArrayBuffer;
                 const chunk = new Uint8Array(arrayBuffer);
                 this.chunks.push(chunk);
-                this.lastChunkTime = Date.now();
                 console.log('Received audio chunk for voice:', this.currentVoiceId, 'Size:', chunk.length);
                 
                 // Update progress
@@ -213,7 +211,6 @@ export class PlayHTWebSocket {
               if ('request_id' in message) {
                 console.log('Audio generation started for voice:', this.currentVoiceId);
                 this.isGenerating = true;
-                this.lastChunkTime = Date.now();
                 this.resetCloseTimeout();
               }
 
@@ -342,7 +339,6 @@ export class PlayHTWebSocket {
     } finally {
       // Reset state
       this.chunks = [];
-      this.lastChunkTime = 0;
     }
   }
 
@@ -423,7 +419,6 @@ export class PlayHTWebSocket {
     this.reconnectAttempts = 0;
     this.connectionPromise = null;
     this.currentVoiceId = null;
-    this.lastChunkTime = 0;
     PlayHTWebSocket.instance = null;
   }
 }

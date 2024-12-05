@@ -21,11 +21,13 @@ export class ParallelAudioGenerator {
   private completionCallbacks: Map<number, (url: string) => void>;
   private pendingChunks: Set<number>;
   private retryAttempts: Map<number, number>;
-  private maxRetries = 5; // Increased retries
+  private maxRetries = 5;
   private retryDelay = 10000; // 10 seconds initial delay
   private maxRetryDelay = 60000; // 1 minute max delay
-  private chunkTimeout = 1200000; // 20 minutes per chunk
-  private minWordCount = 100; // Minimum words per chunk
+  private chunkTimeout = 1800000; // 30 minutes per chunk for longer content
+  private minWordCount = 450; // Increased minimum words per chunk
+  private maxWordCount = 1000; // Maximum words per chunk
+  private optimalWordCount = 500; // Target words per chunk
 
   constructor(
     maxConcurrent = 1, // Process one chunk at a time for reliability
@@ -57,11 +59,12 @@ export class ParallelAudioGenerator {
    */
   async generateParallel(chunks: ProcessedChunk[], voice: string): Promise<string[]> {
     try {
-      // Validate chunks
-      this.validateChunks(chunks);
+      // Validate and optimize chunks
+      const optimizedChunks = this.optimizeChunks(chunks);
+      this.validateChunks(optimizedChunks);
 
       // Initialize progress tracking
-      chunks.forEach((chunk) => {
+      optimizedChunks.forEach((chunk) => {
         this.chunkProgress.set(chunk.metadata.index, {
           chunkIndex: chunk.metadata.index,
           progress: 0,
@@ -71,7 +74,7 @@ export class ParallelAudioGenerator {
         this.retryAttempts.set(chunk.metadata.index, 0);
       });
 
-      console.log(`Starting parallel generation for ${chunks.length} chunks`);
+      console.log(`Starting parallel generation for ${optimizedChunks.length} chunks`);
 
       // Initialize WebSocket
       this.webSocket = PlayHTWebSocket.getInstance(
@@ -84,11 +87,11 @@ export class ParallelAudioGenerator {
 
       // Generate all chunks with retry logic
       const results = await Promise.all(
-        chunks.map(chunk => this.generateChunkWithRetry(chunk, voice))
+        optimizedChunks.map(chunk => this.generateChunkWithRetry(chunk, voice))
       );
 
       // Verify all chunks were generated
-      this.verifyResults(results, chunks.length);
+      this.verifyResults(results, optimizedChunks.length);
 
       // Sort results by chunk index and return audio URLs
       return results
@@ -105,6 +108,47 @@ export class ParallelAudioGenerator {
         this.webSocket = null;
       }
     }
+  }
+
+  /**
+   * Optimize chunks for better processing
+   */
+  private optimizeChunks(chunks: ProcessedChunk[]): ProcessedChunk[] {
+    let optimizedChunks: ProcessedChunk[] = [];
+    let currentChunk: ProcessedChunk | null = null;
+
+    for (const chunk of chunks) {
+      if (!currentChunk) {
+        currentChunk = { ...chunk };
+      } else if (currentChunk.metadata.wordCount + chunk.metadata.wordCount <= this.optimalWordCount) {
+        // Combine chunks if they're small
+        currentChunk.text += ' ' + chunk.text;
+        currentChunk.metadata.wordCount += chunk.metadata.wordCount;
+      } else {
+        optimizedChunks.push(currentChunk);
+        currentChunk = { ...chunk };
+      }
+    }
+
+    if (currentChunk) {
+      optimizedChunks.push(currentChunk);
+    }
+
+    // Reindex chunks
+    optimizedChunks = optimizedChunks.map((chunk, index) => ({
+      ...chunk,
+      metadata: { ...chunk.metadata, index }
+    }));
+
+    console.log('Chunk optimization complete:', {
+      originalCount: chunks.length,
+      optimizedCount: optimizedChunks.length,
+      averageWords: Math.round(
+        optimizedChunks.reduce((sum, chunk) => sum + chunk.metadata.wordCount, 0) / optimizedChunks.length
+      )
+    });
+
+    return optimizedChunks;
   }
 
   /**
@@ -128,12 +172,25 @@ export class ParallelAudioGenerator {
       if (chunk.metadata.wordCount < this.minWordCount) {
         throw new Error(`Chunk ${chunk.metadata.index} is too small (${chunk.metadata.wordCount} words)`);
       }
+      if (chunk.metadata.wordCount > this.maxWordCount) {
+        throw new Error(`Chunk ${chunk.metadata.index} is too large (${chunk.metadata.wordCount} words)`);
+      }
     });
+
+    // Log chunk statistics
+    const wordCounts = chunks.map(chunk => chunk.metadata.wordCount);
+    const totalWords = wordCounts.reduce((sum, count) => sum + count, 0);
+    const avgWords = Math.round(totalWords / chunks.length);
+    const minWords = Math.min(...wordCounts);
+    const maxWords = Math.max(...wordCounts);
 
     console.log('Chunk validation passed:', {
       totalChunks: chunks.length,
-      totalWords: chunks.reduce((sum, chunk) => sum + chunk.metadata.wordCount, 0),
-      averageWords: Math.round(chunks.reduce((sum, chunk) => sum + chunk.metadata.wordCount, 0) / chunks.length)
+      totalWords,
+      averageWords: avgWords,
+      minWords,
+      maxWords,
+      estimatedDuration: `${Math.round(totalWords / 150)} minutes` // Rough estimate: 150 words per minute
     });
   }
 
@@ -150,6 +207,12 @@ export class ParallelAudioGenerator {
     if (invalidResults.length > 0) {
       throw new Error(`Invalid audio URLs for chunks: ${invalidResults.map(r => r.chunkIndex).join(', ')}`);
     }
+
+    // Log verification results
+    console.log('Results verification passed:', {
+      totalResults: results.length,
+      allValid: invalidResults.length === 0
+    });
   }
 
   /**

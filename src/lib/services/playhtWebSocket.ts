@@ -20,11 +20,12 @@ export class PlayHTWebSocket {
   private audioTimeout: NodeJS.Timeout | null = null;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private closeTimeout: NodeJS.Timeout | null = null;
-  private readonly AUDIO_TIMEOUT = 45000; // 45 seconds timeout
+  private readonly AUDIO_TIMEOUT = 300000; // 5 minutes timeout for longer content
   private readonly HEARTBEAT_INTERVAL = 15000; // 15 seconds
-  private readonly CLOSE_DELAY = 30000; // 30 seconds wait before closing
+  private readonly CLOSE_DELAY = 180000; // 3 minutes wait before closing for longer content
   private isGenerating: boolean = false;
   private lastChunkTime: number = 0;
+  private minExpectedChunks: number = 3;
 
   private constructor(
     private readonly apiKey: string,
@@ -173,6 +174,10 @@ export class PlayHTWebSocket {
             // Reset audio timeout on any message
             if (this.audioTimeout) {
               clearTimeout(this.audioTimeout);
+              this.audioTimeout = setTimeout(() => {
+                this.onError('Audio generation timed out. Please try again.');
+                this.disconnect();
+              }, this.AUDIO_TIMEOUT);
             }
             
             if (event.data instanceof Blob) {
@@ -216,6 +221,12 @@ export class PlayHTWebSocket {
                 this.onError(`PlayHT Error: ${message.error}`);
                 this.isGenerating = false;
               }
+
+              // Check for completion message
+              if (message.type === 'complete' || message.status === 'complete') {
+                console.log('Received completion message, finalizing audio...');
+                this.finalizeAudio();
+              }
             }
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error processing WebSocket message';
@@ -230,10 +241,9 @@ export class PlayHTWebSocket {
           this.connectionPromise = null;
           this.stopHeartbeat();
           
-          // Check if we've received any chunks recently
-          const timeSinceLastChunk = Date.now() - this.lastChunkTime;
-          if (this.chunks.length > 0 && timeSinceLastChunk > 30000) {
-            console.log('No new chunks received for 30 seconds, finalizing audio...');
+          // Check if we should finalize audio
+          if (this.chunks.length >= this.minExpectedChunks) {
+            console.log(`WebSocket closed with ${this.chunks.length} chunks received, finalizing audio...`);
             this.finalizeAudio();
           } else if (this.isGenerating) {
             // Only attempt reconnect if we were in the middle of generation
@@ -363,7 +373,8 @@ export class PlayHTWebSocket {
         voice: voiceId,
         output_format: 'mp3',
         voice_engine: 'Play3.0-mini',
-        quality: 'premium'
+        quality: 'premium',
+        speed: 0.9 // Slightly slower speed for better quality
       };
 
       // Log the full request for debugging
@@ -394,6 +405,12 @@ export class PlayHTWebSocket {
     if (this.closeTimeout) {
       clearTimeout(this.closeTimeout);
       this.closeTimeout = null;
+    }
+    
+    // Finalize audio if we have enough chunks before disconnecting
+    if (this.chunks.length >= this.minExpectedChunks) {
+      console.log(`Finalizing audio before disconnect with ${this.chunks.length} chunks...`);
+      this.finalizeAudio();
     }
     
     if (this.ws && !this.isGenerating) {

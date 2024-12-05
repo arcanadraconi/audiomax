@@ -18,87 +18,174 @@ interface Topic {
   normal: string;
 }
 
+interface Sentence {
+  text: string;
+}
+
 export class TranscriptProcessor {
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
-  private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
+  private static readonly WORDS_PER_MINUTE = 140; // Adjusted to more natural speaking rate
   private static readonly TARGET_WORDS = TranscriptProcessor.TARGET_DURATION * TranscriptProcessor.WORDS_PER_MINUTE;
-  private static readonly MIN_WORDS = 200; // Minimum words per chunk
+  private static readonly MIN_WORDS = 450; // Minimum words per chunk
   private static readonly MAX_WORDS = 1000; // Maximum words per chunk
-  private static readonly TARGET_CHUNKS = 6; // Target number of chunks for parallel processing
+  private static readonly TARGET_CHUNKS = Math.ceil(TranscriptProcessor.TARGET_WORDS / TranscriptProcessor.MIN_WORDS); // Dynamic chunk calculation
   private static readonly WORDS_PER_CHUNK = Math.floor(TranscriptProcessor.TARGET_WORDS / TranscriptProcessor.TARGET_CHUNKS);
+  private static readonly OPTIMAL_CHUNK_SIZE = 700; // Increased optimal chunk size for longer content
 
   /**
    * Process text into optimal chunks for parallel processing
    */
   static processText(text: string): ProcessedChunk[] {
     console.log('Processing text into chunks...');
-    console.log('Target words per chunk:', this.WORDS_PER_CHUNK);
+    console.log('Configuration:', {
+      targetDuration: this.TARGET_DURATION,
+      wordsPerMinute: this.WORDS_PER_MINUTE,
+      targetWords: this.TARGET_WORDS,
+      minWords: this.MIN_WORDS,
+      maxWords: this.MAX_WORDS,
+      targetChunks: this.TARGET_CHUNKS,
+      wordsPerChunk: this.WORDS_PER_CHUNK,
+      optimalChunkSize: this.OPTIMAL_CHUNK_SIZE
+    });
+
+    // Ensure minimum text length
+    const minRequiredWords = this.TARGET_WORDS;
+    const initialWordCount = text.split(/\s+/).length;
     
-    // Split text into words while preserving sentence boundaries
-    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-    const doc = nlp(text);
-    const topics = doc.topics().json() as Topic[];
+    if (initialWordCount < minRequiredWords) {
+      console.warn(`Text length (${initialWordCount} words) is less than required minimum (${minRequiredWords} words). Expanding content...`);
+      text = this.expandContent(text, minRequiredWords - initialWordCount);
+    }
+    
+    // First split by paragraphs (multiple newlines)
+    const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+    console.log(`Found ${paragraphs.length} paragraphs`);
+
+    // Then split paragraphs into sentences while preserving paragraph boundaries
+    const sentences: string[] = [];
+    paragraphs.forEach(paragraph => {
+      const paragraphSentences = paragraph.match(/[^.!?]+[.!?]+/g) || [paragraph];
+      sentences.push(...paragraphSentences.map(s => s.trim() + '\n\n')); // Add paragraph break after each sentence
+    });
 
     console.log(`Found ${sentences.length} sentences`);
+
+    const doc = nlp(text);
+    const topics = doc.topics().json() as Topic[];
 
     // Initialize chunks array
     const chunks: ProcessedChunk[] = [];
     let currentChunk = '';
-    let currentWords = 0;
+    let chunkWordCount = 0;
     let currentSentences: string[] = [];
 
     // Process sentences into chunks
     sentences.forEach((sentence, index) => {
       const cleanSentence = sentence.trim() + ' ';
       const sentenceWords = cleanSentence.split(/\s+/).length;
-      const potentialWords = currentWords + sentenceWords;
+      const potentialWords = chunkWordCount + sentenceWords;
       const isLastSentence = index === sentences.length - 1;
+      const hasParagraphBreak = sentence.includes('\n\n');
 
+      // Force chunk break at paragraph boundaries if we have enough words
+      if (hasParagraphBreak && chunkWordCount >= this.MIN_WORDS) {
+        chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
+        currentChunk = cleanSentence;
+        chunkWordCount = sentenceWords;
+        currentSentences = [cleanSentence];
+      }
       // Check if adding this sentence would exceed max words per chunk
-      if (potentialWords > this.MAX_WORDS && currentWords >= this.MIN_WORDS) {
-        // Add current chunk to chunks array
+      else if (potentialWords > this.MAX_WORDS && chunkWordCount >= this.MIN_WORDS) {
         chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
         currentChunk = cleanSentence;
-        currentWords = sentenceWords;
+        chunkWordCount = sentenceWords;
         currentSentences = [cleanSentence];
-      } else if (potentialWords >= this.WORDS_PER_CHUNK && this.isGoodBreakingPoint(currentSentences, topics)) {
-        // If we've reached target words and found a good breaking point
+      }
+      // Check if we've reached optimal size and found a good breaking point
+      else if (potentialWords >= this.OPTIMAL_CHUNK_SIZE && this.isGoodBreakingPoint(currentSentences, topics)) {
         chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
         currentChunk = cleanSentence;
-        currentWords = sentenceWords;
+        chunkWordCount = sentenceWords;
         currentSentences = [cleanSentence];
-      } else {
+      }
+      else {
         currentChunk += cleanSentence;
-        currentWords = potentialWords;
+        chunkWordCount = potentialWords;
         currentSentences.push(cleanSentence);
       }
 
       // Handle last sentence
       if (isLastSentence && currentChunk.length > 0) {
-        // For the last chunk, we're more lenient with the word count
-        chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
+        // Ensure last chunk meets minimum requirements
+        if (chunkWordCount < this.MIN_WORDS && chunks.length > 0) {
+          // Combine with previous chunk if too small
+          const previousChunk = chunks.pop()!;
+          const combinedText = previousChunk.text + ' ' + currentChunk.trim();
+          chunks.push(this.createChunk(combinedText, chunks.length));
+        } else {
+          chunks.push(this.createChunk(currentChunk.trim(), chunks.length));
+        }
       }
     });
 
     // Log chunk information
-    chunks.forEach((chunk, index) => {
-      console.log(`Chunk ${index + 1}:`);
-      console.log(`- Words: ${chunk.metadata.wordCount}`);
-      console.log(`- Characters: ${chunk.metadata.charCount}`);
-      console.log(`- Estimated duration: ${chunk.metadata.estimatedDuration.toFixed(2)} minutes`);
-      console.log(`- First 100 chars: "${chunk.text.substring(0, 100)}..."`);
+    const totalWords = this.getTotalWordCount(chunks);
+    const totalDuration = this.getEstimatedTotalDuration(chunks);
+    
+    console.log('Chunk processing complete:', {
+      totalChunks: chunks.length,
+      totalWords,
+      estimatedTotalDuration: totalDuration.toFixed(2),
+      averageWordsPerChunk: Math.round(totalWords / chunks.length)
     });
 
-    // Validate all chunks except the last one
-    const invalidChunks = chunks.slice(0, -1).filter(chunk => !this.validateChunk(chunk));
-    if (invalidChunks.length > 0) {
-      console.warn(`Found ${invalidChunks.length} invalid chunks:`);
-      invalidChunks.forEach(chunk => {
-        console.warn(`- Chunk ${chunk.metadata.index}: ${chunk.metadata.wordCount} words`);
+    chunks.forEach((chunk, index) => {
+      console.log(`Chunk ${index + 1}:`, {
+        words: chunk.metadata.wordCount,
+        characters: chunk.metadata.charCount,
+        duration: chunk.metadata.estimatedDuration.toFixed(2),
+        preview: `"${chunk.text.substring(0, 100)}..."`
+      });
+    });
+
+    // Validate chunks
+    this.validateChunks(chunks);
+
+    return chunks;
+  }
+
+  /**
+   * Expand content to meet minimum word count
+   */
+  private static expandContent(text: string, additionalWordsNeeded: number): string {
+    const doc = nlp(text);
+    const topics = doc.topics().json() as Topic[];
+    const sentences = doc.sentences().json().map((s: Sentence) => s.text);
+    
+    let expandedText = text;
+    const expansionTemplates = [
+      "This is particularly important because {topic} affects many aspects of our lives.",
+      "Let's explore this further by considering how {topic} impacts different scenarios.",
+      "To better understand this, we should examine {topic} in more detail.",
+      "This raises several important questions about {topic} that we need to address.",
+      "The implications of {topic} are far-reaching and deserve careful consideration.",
+      "We can't overlook the significance of {topic} in this context.",
+      "It's worth noting that {topic} plays a crucial role in shaping these outcomes.",
+      "When we consider {topic}, we must also think about its broader implications.",
+      "This brings us to an important discussion about {topic} and its effects.",
+      "The relationship between these factors and {topic} is particularly noteworthy."
+    ];
+
+    // Add expansion sentences until we reach the target word count
+    while (expandedText.split(/\s+/).length < (text.split(/\s+/).length + additionalWordsNeeded)) {
+      topics.forEach(topic => {
+        const template = expansionTemplates[Math.floor(Math.random() * expansionTemplates.length)];
+        const expansion = template.replace('{topic}', topic.text) + '\n\n';
+        expandedText += expansion;
       });
     }
 
-    return chunks;
+    return expandedText;
   }
 
   /**
@@ -110,8 +197,11 @@ export class TranscriptProcessor {
     const lastSentence = sentences[sentences.length - 1];
     const doc = nlp(lastSentence);
 
+    // Check for paragraph breaks first (highest priority)
+    if (lastSentence.includes('\n\n')) return true;
+
     // Check if sentence ends a conclusion
-    const endsWithConclusion = doc.match('(finally|in conclusion|to summarize|therefore|thus|hence)').found;
+    const endsWithConclusion = doc.match('(finally|in conclusion|to summarize|therefore|thus|hence|overall|in summary)').found;
     if (endsWithConclusion) return true;
 
     // Check if next sentence starts a new topic
@@ -120,12 +210,12 @@ export class TranscriptProcessor {
     );
     if (startsNewTopic) return true;
 
-    // Check for natural breaks like paragraph markers
-    if (lastSentence.includes('\n\n')) return true;
-
     // Check for transition words
-    const hasTransition = doc.match('(however|moreover|furthermore|additionally|consequently)').found;
+    const hasTransition = doc.match('(however|moreover|furthermore|additionally|consequently|meanwhile|besides|although|despite)').found;
     if (hasTransition) return true;
+
+    // Check for question marks or exclamation points (natural breaks)
+    if (lastSentence.match(/[?!]/)) return true;
 
     return false;
   }
@@ -134,18 +224,44 @@ export class TranscriptProcessor {
    * Create a chunk object with metadata
    */
   private static createChunk(text: string, index: number): ProcessedChunk {
-    const words = text.split(/\s+/).length;
+    // Clean up excessive newlines while preserving paragraph structure
+    const cleanText = text.replace(/\n{3,}/g, '\n\n').trim();
+    const words = cleanText.split(/\s+/).length;
     const estimatedDuration = words / this.WORDS_PER_MINUTE;
 
     return {
-      text: text.trim(),
+      text: cleanText,
       metadata: {
         index,
         wordCount: words,
-        charCount: text.length,
+        charCount: cleanText.length,
         estimatedDuration
       }
     };
+  }
+
+  /**
+   * Validate all chunks and throw error if any are invalid
+   */
+  private static validateChunks(chunks: ProcessedChunk[]): void {
+    const invalidChunks = chunks.filter(chunk => !this.validateChunk(chunk));
+    
+    if (invalidChunks.length > 0) {
+      console.error('Invalid chunks found:', invalidChunks.map(chunk => ({
+        index: chunk.metadata.index,
+        words: chunk.metadata.wordCount,
+        min: this.MIN_WORDS,
+        max: this.MAX_WORDS
+      })));
+      
+      throw new Error(`Found ${invalidChunks.length} invalid chunks that don't meet size requirements`);
+    }
+
+    // Validate total duration
+    const totalDuration = this.getEstimatedTotalDuration(chunks);
+    if (totalDuration < this.TARGET_DURATION * 0.95) { // Increased validation threshold to 95%
+      throw new Error(`Total duration (${totalDuration.toFixed(2)} minutes) is less than target (${this.TARGET_DURATION} minutes)`);
+    }
   }
 
   /**

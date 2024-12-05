@@ -23,7 +23,7 @@ export class OpenRouterService {
   private static readonly MODEL = 'google/gemini-flash-1.5';  // Using a faster model 
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
-  private static readonly MIN_WORDS = 2500; // Minimum words needed for 15 minutes
+  private static readonly MIN_WORDS = 3500; // Minimum words needed for 15 minutes
   private static readonly MIN_CHUNK_WORDS = 700; // Minimum words per chunk
   private static readonly MAX_CHUNK_WORDS = 1000; // Maximum words per chunk
   private static readonly TARGET_CHUNKS = 9; // Target number of chunks
@@ -140,7 +140,11 @@ Write in a conversational, relatable tone that mirrors how your target audience 
 Share relevant personal anecdotes, observations, and cultural references that your audience will recognize
 Include thought-provoking perspectives that challenge conventional wisdom
 Incorporate humor, wit, and light sarcasm where appropriate
+Elaborate on the topic and do not hesitate to include thought provocating ideas, sarcasm, or other natural input that will make the content more human. 
 Address common frustrations, desires, and unspoken thoughts your audience experiences
+Do not hesitate to say out-loud what most say in their head. 
+Be bold and unapologetic, passionated and open minded, while remaining respectful. 
+think out of the boxes, and make the audience want to do the same or dig deepter.
 Use casual language, colloquialisms, and current expressions natural to ${audience}
 Weave in rhetorical questions that reflect your audience's inner monologue
 Create emotional peaks and valleys through varied sentence structure and strategic pauses

@@ -11,9 +11,11 @@ export class AudioAssembler {
   private chunkSize = 5 * 1024 * 1024; // 5MB chunk size for better handling of long audio
   private maxRetries = 5; // Increased retries
   private retryDelay = 3000; // 3 seconds
-  private downloadTimeout = 60000; // 60 seconds timeout for larger chunks
+  private downloadTimeout = 180000; // 180 seconds timeout for larger chunks
   private minValidDuration = 1.0; // 1 second minimum valid duration
-  private maxConcurrentDownloads = 3; // Limit concurrent downloads
+  private maxConcurrentDownloads = 3; // Reduced concurrent downloads for stability
+  private minChunkSize = 2000; // 1KB minimum chunk size
+  private maxRetryDelay = 30000; // 30 seconds max retry delay
 
   constructor(onProgress: (progress: AssemblyProgress) => void) {
     this.onProgress = onProgress;
@@ -50,26 +52,47 @@ export class AudioAssembler {
   private async downloadChunksWithConcurrency(urls: string[]): Promise<AudioChunk[]> {
     const chunks: AudioChunk[] = new Array(urls.length);
     let completedChunks = 0;
+    let failedAttempts = 0;
+    const maxFailedAttempts = urls.length * 2; // Allow more retries for resilience
     
     // Process URLs in batches to control concurrency
     for (let i = 0; i < urls.length; i += this.maxConcurrentDownloads) {
       const batch = urls.slice(i, i + this.maxConcurrentDownloads);
       const batchPromises = batch.map(async (url, batchIndex) => {
         const index = i + batchIndex;
-        const chunk = await this.downloadChunkWithRetry(url, index);
-        chunks[index] = chunk;
-        completedChunks++;
-        
-        this.onProgress({ 
-          phase: 'downloading', 
-          progress: (completedChunks / urls.length) * 100 
-        });
+        try {
+          const chunk = await this.downloadChunkWithRetry(url, index);
+          chunks[index] = chunk;
+          completedChunks++;
+          
+          this.onProgress({ 
+            phase: 'downloading', 
+            progress: (completedChunks / urls.length) * 100 
+          });
+        } catch (error) {
+          failedAttempts++;
+          if (failedAttempts > maxFailedAttempts) {
+            throw new Error(`Too many failed download attempts (${failedAttempts})`);
+          }
+          console.error(`Failed to download chunk ${index}:`, error);
+          // Retry this chunk at the end if needed
+          if (i + this.maxConcurrentDownloads >= urls.length) {
+            const retryChunk = await this.downloadChunkWithRetry(url, index);
+            chunks[index] = retryChunk;
+            completedChunks++;
+          }
+        }
       });
 
       await Promise.all(batchPromises);
     }
 
-    return chunks.filter(Boolean); // Remove any undefined entries
+    const validChunks = chunks.filter(Boolean);
+    if (validChunks.length !== urls.length) {
+      throw new Error(`Failed to download all chunks. Expected ${urls.length}, got ${validChunks.length}`);
+    }
+
+    return validChunks;
   }
 
   private async downloadChunkWithRetry(url: string, index: number): Promise<AudioChunk> {
@@ -84,7 +107,8 @@ export class AudioAssembler {
         const response = await fetch(url, { 
           signal: controller.signal,
           headers: {
-            'Range': 'bytes=0-' // Request full content
+            'Range': 'bytes=0-', // Request full content
+            'Cache-Control': 'no-cache' // Prevent caching issues
           }
         });
         clearTimeout(timeoutId);
@@ -96,8 +120,8 @@ export class AudioAssembler {
         const buffer = await response.arrayBuffer();
         console.log(`Downloaded chunk ${index}, size: ${buffer.byteLength} bytes`);
 
-        if (buffer.byteLength === 0) {
-          throw new Error(`Empty chunk received for index ${index}`);
+        if (buffer.byteLength < this.minChunkSize) {
+          throw new Error(`Chunk ${index} too small: ${buffer.byteLength} bytes`);
         }
 
         return {
@@ -110,9 +134,9 @@ export class AudioAssembler {
         console.error(`Attempt ${attempt + 1} failed for chunk ${index}:`, error);
         
         if (attempt < this.maxRetries - 1) {
-          console.log(`Retrying chunk ${index} in ${delay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          delay *= 2; // Exponential backoff
+          const currentDelay = Math.min(delay * Math.pow(2, attempt), this.maxRetryDelay);
+          console.log(`Retrying chunk ${index} in ${currentDelay/1000} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, currentDelay));
         }
       }
     }
@@ -130,9 +154,9 @@ export class AudioAssembler {
     }
 
     // Verify chunk sizes
-    const invalidChunks = chunks.filter(chunk => chunk.size === 0);
+    const invalidChunks = chunks.filter(chunk => chunk.size < this.minChunkSize);
     if (invalidChunks.length > 0) {
-      throw new Error(`Found ${invalidChunks.length} empty chunks`);
+      throw new Error(`Found ${invalidChunks.length} invalid chunks`);
     }
 
     // Verify total size is reasonable for expected duration
@@ -141,7 +165,8 @@ export class AudioAssembler {
     console.log('Chunk verification passed:', {
       totalChunks: chunks.length,
       totalSize,
-      estimatedDuration: `${Math.round(estimatedMinutes * 10) / 10} minutes`
+      estimatedDuration: `${Math.round(estimatedMinutes * 10) / 10} minutes`,
+      averageChunkSize: Math.round(totalSize / chunks.length)
     });
 
     if (estimatedMinutes < 1) {
@@ -201,7 +226,7 @@ export class AudioAssembler {
         console.error('Audio load timeout');
         URL.revokeObjectURL(url);
         resolve(false);
-      }, 10000); // 10 second timeout for loading
+      }, 30000); // 30 second timeout for loading
 
       audio.onloadedmetadata = () => {
         clearTimeout(loadTimeout);
@@ -209,7 +234,8 @@ export class AudioAssembler {
         console.log('Audio verification:', {
           duration: audio.duration,
           size: blob.size,
-          isValid
+          isValid,
+          estimatedMinutes: Math.round(audio.duration / 60)
         });
         URL.revokeObjectURL(url);
         resolve(isValid);

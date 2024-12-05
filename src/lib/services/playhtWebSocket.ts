@@ -24,7 +24,9 @@ export class PlayHTWebSocket {
   private readonly HEARTBEAT_INTERVAL = 15000; // 15 seconds
   private readonly CLOSE_DELAY = 180000; // 3 minutes wait before closing for longer content
   private isGenerating: boolean = false;
-  private minExpectedChunks: number = 3;
+  private expectedChunks: number = 0;
+  private readonly CHUNK_SIZE = 576; // Average chunk size
+  private readonly WORDS_PER_MINUTE = 150; // Average speaking rate
 
   private constructor(
     private readonly apiKey: string,
@@ -53,6 +55,18 @@ export class PlayHTWebSocket {
 
   private getBaseUrl(): string {
     return window.location.origin + '/api';
+  }
+
+  private calculateExpectedChunks(text: string): number {
+    // Calculate expected duration in minutes
+    const wordCount = text.split(/\s+/).length;
+    const durationMinutes = wordCount / this.WORDS_PER_MINUTE;
+    
+    // Convert to bytes (assuming 128kbps MP3)
+    const expectedBytes = durationMinutes * 60 * (128 * 1024 / 8);
+    
+    // Calculate expected chunks
+    return Math.ceil(expectedBytes / this.CHUNK_SIZE);
   }
 
   private async getWebSocketUrl(): Promise<string> {
@@ -188,10 +202,13 @@ export class PlayHTWebSocket {
                 this.chunks.push(chunk);
                 console.log('Received audio chunk for voice:', this.currentVoiceId, 'Size:', chunk.length);
                 
-                // Update progress
+                // Calculate progress based on expected chunks
+                const progress = Math.min((this.chunks.length / this.expectedChunks) * 100, 99);
+                console.log(`Progress: ${progress}% (${this.chunks.length}/${this.expectedChunks} chunks)`);
+                
                 this.onProgress({
-                  progress: Math.min((this.chunks.length / 100) * 100, 99),
-                  status: 'receiving'
+                  progress,
+                  status: 'generating_audio'
                 });
 
                 // Reset close timeout
@@ -239,7 +256,7 @@ export class PlayHTWebSocket {
           this.stopHeartbeat();
           
           // Check if we should finalize audio
-          if (this.chunks.length >= this.minExpectedChunks) {
+          if (this.chunks.length >= Math.floor(this.expectedChunks * 0.9)) {
             console.log(`WebSocket closed with ${this.chunks.length} chunks received, finalizing audio...`);
             this.finalizeAudio();
           } else if (this.isGenerating) {
@@ -339,6 +356,7 @@ export class PlayHTWebSocket {
     } finally {
       // Reset state
       this.chunks = [];
+      this.expectedChunks = 0;
     }
   }
 
@@ -347,6 +365,10 @@ export class PlayHTWebSocket {
       if (!text || !voiceId) {
         throw new Error('Text and voice ID are required');
       }
+
+      // Calculate expected chunks before connecting
+      this.expectedChunks = this.calculateExpectedChunks(text);
+      console.log(`Expecting approximately ${this.expectedChunks} chunks for ${text.length} characters`);
 
       await this.connect();
 
@@ -404,7 +426,7 @@ export class PlayHTWebSocket {
     }
     
     // Finalize audio if we have enough chunks before disconnecting
-    if (this.chunks.length >= this.minExpectedChunks) {
+    if (this.chunks.length >= Math.floor(this.expectedChunks * 0.9)) {
       console.log(`Finalizing audio before disconnect with ${this.chunks.length} chunks...`);
       this.finalizeAudio();
     }
@@ -419,6 +441,7 @@ export class PlayHTWebSocket {
     this.reconnectAttempts = 0;
     this.connectionPromise = null;
     this.currentVoiceId = null;
+    this.expectedChunks = 0;
     PlayHTWebSocket.instance = null;
   }
 }

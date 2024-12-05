@@ -18,10 +18,6 @@ interface Topic {
   normal: string;
 }
 
-interface Sentence {
-  text: string;
-}
-
 export class TranscriptProcessor {
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 140; // Adjusted to more natural speaking rate

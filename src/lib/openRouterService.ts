@@ -20,7 +20,7 @@ interface GeneratedTitle {
 
 export class OpenRouterService {
   private static readonly API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-  private static readonly MODEL = 'meta-llama/llama-3.3-70b-instruct';  // Using a faster model 
+  private static readonly MODEL = 'google/gemini-2.0-flash-exp:free';  // Using a faster model 
   private static readonly TARGET_DURATION = 15; // Target full 15 minutes
   private static readonly WORDS_PER_MINUTE = 150; // Average speaking rate
   private static readonly MIN_WORDS = 2500; // Minimum words needed for 15 minutes

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, Star, Volume2 } from 'lucide-react';
 import type { Voice } from '../../lib/playht';
-import { auth } from '../../lib/firebase';
 
 interface VoiceSearchProps {
   onVoiceSelect: (voice: Voice) => void;
@@ -17,8 +16,8 @@ interface VoiceGroup {
   voices: Voice[];
 }
 
-export function VoiceSearch({ 
-  onVoiceSelect, 
+export function VoiceSearch({
+  onVoiceSelect,
   onFavoriteToggle,
   onPlaySample,
   isLibraryMode = true,
@@ -29,8 +28,6 @@ export function VoiceSearch({
   const [filteredVoices, setFilteredVoices] = useState<Voice[]>(initialVoices);
   const [voiceGroups, setVoiceGroups] = useState<VoiceGroup[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -54,7 +51,7 @@ export function VoiceSearch({
 
   const groupVoicesByLanguage = (voices: Voice[]): VoiceGroup[] => {
     const groups: { [key: string]: Voice[] } = {};
-    
+
     voices.forEach(voice => {
       const lang = voice.language || 'Unknown';
       if (!groups[lang]) {
@@ -122,15 +119,7 @@ export function VoiceSearch({
         />
       </div>
 
-      {isLoading && (
-        <div className="mt-2 text-white/60">Loading voices...</div>
-      )}
-
-      {error && (
-        <div className="mt-2 text-red-400">{error}</div>
-      )}
-
-      {showDropdown && !isLoading && !error && voiceGroups.length > 0 && (
+      {showDropdown && voiceGroups.length > 0 && (
         <div className="absolute left-0 right-0 z-50 mt-2">
           <div className="mx-0 bg-[#1a1a4d]/95 backdrop-blur-sm rounded-lg border text-sm border-white/10">
             <div className="max-h-[calc(3*4rem)] overflow-y-auto">
@@ -189,7 +178,7 @@ export function VoiceSearch({
         </div>
       )}
 
-      {!isLoading && !error && searchTerm && filteredVoices.length === 0 && (
+      {searchTerm && filteredVoices.length === 0 && (
         <div className="mt-2 text-white/60">No voices found matching your search.</div>
       )}
     </div>
